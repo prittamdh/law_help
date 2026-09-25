@@ -3,14 +3,17 @@
 Run with: uvicorn law_help.api:app --reload
 """
 
+import re
 from datetime import date
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from psycopg.types.json import Jsonb
 
 from . import db
+from .extract import canonical_act
 from .importer import BUCKET_URL
 
 app = FastAPI(title="law_help", description="Search Rajasthan High Court judgments")
@@ -28,15 +31,24 @@ def search_page():
 def judgment_page():
     return FileResponse(STATIC_DIR / "judgment.html")
 
+
 LIST_COLUMNS = """
     id, bench, cnr, case_type, case_number, case_year, title, petitioner, respondent,
-    judges, bench_strength, disposal_nature, decision_date, pdf_key
+    judges, bench_judges, bench_strength, disposal_nature, decision_date, pdf_key,
+    neutral_citation, summary
 """
 
 
 def get_conn():
     with db.connect() as conn:
         yield conn
+
+
+def normalize_section(section: str) -> str:
+    """Match how law_help.extract stores sections: '120 - b' -> '120B', 'Sec. 3(1)(r)' -> '3(1)(r)'."""
+    s = re.sub(r"^\s*(?:sections?|secs?\.?|s\.|u/s\.?)\s*", "", section, flags=re.I)
+    s = re.sub(r"[\s-]+", "", s)
+    return re.sub(r"^(\d+)([a-z])(?![a-z])", lambda m: m[1] + m[2].upper(), s)
 
 
 def _with_pdf_url(row: dict) -> dict:
@@ -48,6 +60,8 @@ def _with_pdf_url(row: dict) -> dict:
 def search_judgments(
     q: str | None = Query(None, description="full-text search (web-search syntax)"),
     judge: str | None = Query(None, description="exact judge name, e.g. SAMEER JAIN"),
+    act: str | None = Query(None, description="act cited, e.g. IPC or Indian Penal Code, 1860"),
+    section: str | None = Query(None, description="section of `act`, e.g. 302 or 120-B"),
     case_type: str | None = Query(None, description="e.g. CW, CRLMB"),
     bench: str | None = Query(None, pattern="^(jaipur|jodhpur)$"),
     disposal: str | None = Query(None, description="e.g. ALLOWED, DISMISSED"),
@@ -62,8 +76,17 @@ def search_judgments(
         where.append("search @@ websearch_to_tsquery('english', %(q)s)")
         params["q"] = q
     if judge:
-        where.append("%(judge)s = ANY(judges)")
-        params["judge"] = judge.upper()
+        # eCourts metadata and the judgment PDF occasionally disagree on judges; match either.
+        where.append("(%(judge)s = ANY(judges) OR %(judge)s = ANY(bench_judges))")
+        params["judge"] = judge.strip().upper()
+    if section and not act:
+        raise HTTPException(422, "section needs an act")
+    if act:
+        cited = {"act": canonical_act(act)}
+        if section:
+            cited["sections"] = [normalize_section(section)]
+        where.append("acts_cited @> %(acts_cited)s")
+        params["acts_cited"] = Jsonb([cited])
     if case_type:
         where.append("case_type = %(case_type)s")
         params["case_type"] = case_type.upper()
@@ -100,7 +123,8 @@ def search_judgments(
 @app.get("/judgments/{judgment_id}")
 def get_judgment(judgment_id: int, conn=Depends(get_conn)):
     row = conn.execute(
-        f"SELECT {LIST_COLUMNS}, date_of_registration, description, full_text "
+        f"SELECT {LIST_COLUMNS}, date_of_registration, description, full_text, text_language, "
+        "parties, advocates, acts_cited, cases_cited "
         "FROM judgments WHERE id = %s",
         (judgment_id,),
     ).fetchone()
@@ -111,7 +135,7 @@ def get_judgment(judgment_id: int, conn=Depends(get_conn)):
 
 @app.get("/stats")
 def stats(conn=Depends(get_conn)):
-    """Counts that help a user orient: totals, top judges, case types, outcomes."""
+    """Counts that help a user orient: totals, top judges, acts, case types, outcomes."""
     return {
         "total": conn.execute("SELECT count(*) AS n FROM judgments").fetchone()["n"],
         "with_text": conn.execute(
@@ -121,6 +145,9 @@ def stats(conn=Depends(get_conn)):
         "top_judges": conn.execute(
             "SELECT j AS judge, count(*) AS n FROM judgments, unnest(judges) j "
             "GROUP BY 1 ORDER BY 2 DESC LIMIT 20").fetchall(),
+        "top_acts": conn.execute(
+            "SELECT a->>'act' AS act, count(*) AS n FROM judgments, jsonb_array_elements(acts_cited) a "
+            "GROUP BY 1 ORDER BY 2 DESC LIMIT 100").fetchall(),
         "top_case_types": conn.execute(
             "SELECT case_type, count(*) AS n FROM judgments WHERE case_type IS NOT NULL "
             "GROUP BY 1 ORDER BY 2 DESC LIMIT 20").fetchall(),

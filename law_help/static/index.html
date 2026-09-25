@@ -38,8 +38,11 @@
           <datalist id="judges"></datalist>
 
           <label for="f-act">Act</label>
-          <input id="f-act" name="act" placeholder="e.g. NDPS Act">
-          <p class="hint">Matches the act's name in the judgment text.</p>
+          <input id="f-act" name="act" list="acts" placeholder="e.g. IPC, NDPS Act" autocomplete="off">
+          <datalist id="acts"></datalist>
+          <label for="f-section">Section</label>
+          <input id="f-section" name="section" placeholder="e.g. 302, 120-B">
+          <p class="hint">Acts and sections are read from the judgment text, so only judgments with extracted text match.</p>
 
           <label for="f-case-type">Case type</label>
           <input id="f-case-type" name="case_type" list="case-types" placeholder="e.g. CW, CRLMB" autocomplete="off">

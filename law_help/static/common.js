@@ -7,7 +7,7 @@ function el(tag, attrs = {}, ...children) {
     if (k === "class") node.className = v;
     else node.setAttribute(k, v);
   }
-  for (const c of children.flat()) {
+  for (const c of children.flat(Infinity)) {
     if (c == null || c === "") continue;
     node.append(c instanceof Node ? c : String(c));
   }
@@ -32,6 +32,10 @@ function formatDate(iso) {
   if (!iso) return "";
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function truncate(s, n) {
+  return s.length > n ? s.slice(0, s.lastIndexOf(" ", n) > 0 ? s.lastIndexOf(" ", n) : n) + "…" : s;
 }
 
 function caseNumber(j) {

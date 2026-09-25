@@ -50,3 +50,4 @@ ALTER TABLE judgments ADD COLUMN IF NOT EXISTS structured_at    TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS judgments_acts_cited_idx       ON judgments USING GIN (acts_cited jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS judgments_cases_cited_idx      ON judgments USING GIN (cases_cited jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS judgments_neutral_citation_idx ON judgments (neutral_citation);
+CREATE INDEX IF NOT EXISTS judgments_bench_judges_idx     ON judgments USING GIN (bench_judges);
