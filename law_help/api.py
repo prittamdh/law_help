@@ -4,13 +4,29 @@ Run with: uvicorn law_help.api:app --reload
 """
 
 from datetime import date
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import db
 from .importer import BUCKET_URL
 
 app = FastAPI(title="law_help", description="Search Rajasthan High Court judgments")
+
+STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def search_page():
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/judgment", include_in_schema=False)
+def judgment_page():
+    return FileResponse(STATIC_DIR / "judgment.html")
 
 LIST_COLUMNS = """
     id, bench, cnr, case_type, case_number, case_year, title, petitioner, respondent,

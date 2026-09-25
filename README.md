@@ -19,7 +19,7 @@ python -m law_help.importer metadata                         # every year (1989 
 python -m law_help.importer text --limit 500                 # fetch PDFs, extract text and structure
 python -m law_help.importer structure                        # re-derive structure from stored text
 
-uvicorn law_help.api:app --reload     # http://localhost:8000/docs
+uvicorn law_help.api:app --reload     # search UI at http://localhost:8000, API docs at /docs
 ```
 
 Set `DATABASE_URL` to point somewhere other than `postgresql://law:law@localhost:5432/law_help`.
@@ -48,6 +48,12 @@ The rules are in `law_help/extract.py`. When they change, bump `EXTRACTOR_VERSIO
 `structure` to re-derive every row from stored text without downloading anything again.
 Accuracy on hand-labelled judgments is in [eval/README.md](eval/README.md).
 
+## Search UI
+
+`uvicorn` also serves a small search page at `/`. It has a keyword box plus filters for bench, decision dates, judge, act, case type and outcome, and each result opens a detail page with the case details, the extracted text and a link to the PDF. The search lives in the URL, so a search can be bookmarked or shared.
+
+The act filter searches for the act's name as a phrase in the judgment text, so it only finds judgments whose text has been extracted (or whose opening lines name the act).
+
 ## API
 
 | Endpoint | What it does |
@@ -68,6 +74,7 @@ Until `text` has run, full-text search only sees the title and the opening lines
 - `law_help/extract.py`: pulls parties, advocates, judges, acts, cited cases and a summary out of judgment text
 - `eval/`: hand-labelled judgments and the script that scores the extractor against them
 - `law_help/api.py`: the FastAPI search API
+- `law_help/static/`: the search and judgment pages (plain HTML, CSS and JavaScript, no build step)
 
 ## Tests
 
