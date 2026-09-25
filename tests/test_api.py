@@ -1,4 +1,6 @@
-"""API tests against a real Postgres. Skipped when DATABASE_URL is unreachable."""
+"""API tests against a dedicated Postgres database (TEST_DATABASE_URL). Skipped when unreachable."""
+
+import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -28,21 +30,25 @@ ROWS = [
 ]
 
 
+TEST_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://law:law@localhost:5432/law_help_test")
+
+
 @pytest.fixture(scope="module")
 def client():
     try:
-        conn = db.connect()
+        conn = db.connect(TEST_URL)
     except Exception:
-        pytest.skip("no database available")
+        pytest.skip("no test database available")
+    mp = pytest.MonkeyPatch()
+    mp.setenv("DATABASE_URL", TEST_URL)
     db.init_schema(conn)
-    conn.execute("DELETE FROM judgments WHERE source = 'test'")
+    conn.execute("TRUNCATE judgments")
     with conn.cursor() as cur:
         cur.executemany(UPSERT_SQL, ROWS)
     conn.commit()
     from law_help.api import app
     yield TestClient(app)
-    conn.execute("DELETE FROM judgments WHERE source = 'test'")
-    conn.commit()
+    mp.undo()
     conn.close()
 
 

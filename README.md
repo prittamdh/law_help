@@ -47,5 +47,6 @@ Until `text` has run, full-text search only sees the title and the opening lines
 ## Tests
 
 ```bash
-pytest          # API tests need Postgres at DATABASE_URL; they skip otherwise
+docker compose exec db createdb -U law law_help_test   # once
+pytest          # API tests use TEST_DATABASE_URL (default .../law_help_test) and skip if it is unreachable
 ```
