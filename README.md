@@ -52,15 +52,15 @@ Accuracy on hand-labelled judgments is in [eval/README.md](eval/README.md).
 
 `uvicorn` also serves a small search page at `/`. It has a keyword box plus filters for bench, decision dates, judge, act, case type and outcome, and each result opens a detail page with the case details, the extracted text and a link to the PDF. The search lives in the URL, so a search can be bookmarked or shared.
 
-The act filter searches for the act's name as a phrase in the judgment text, so it only finds judgments whose text has been extracted (or whose opening lines name the act).
+The act and section filters use the acts each judgment cites (see `importer structure`), so they only find judgments whose text has been extracted. The act box accepts short forms such as `IPC` or `NDPS Act`. The detail page also shows the summary, the neutral citation, advocates, the acts and sections cited (each one links to a search), and the cases cited.
 
 ## API
 
 | Endpoint | What it does |
 | --- | --- |
-| `GET /judgments` | Search and filter: `q` (full text), `judge`, `case_type`, `bench`, `disposal`, `decided_from`, `decided_to`, `page`, `page_size` |
+| `GET /judgments` | Search and filter: `q` (full text), `judge` (matches the eCourts judges or the judges printed on the PDF), `act` and `section`, `case_type`, `bench`, `disposal`, `decided_from`, `decided_to`, `page`, `page_size` |
 | `GET /judgments/{id}` | One judgment with its description and extracted text |
-| `GET /stats` | Totals by bench, the top judges, case types and outcomes |
+| `GET /stats` | Totals by bench, the top judges, acts, case types and outcomes |
 
 Every result carries a `pdf_url` that points at the original judgment PDF.
 

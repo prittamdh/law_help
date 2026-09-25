@@ -1,7 +1,7 @@
 // Search page: the URL query string holds the search, so results can be shared and Back works.
 
 const form = document.getElementById("search");
-const FIELDS = ["q", "bench", "decided_from", "decided_to", "judge", "act", "case_type", "disposal"];
+const FIELDS = ["q", "bench", "decided_from", "decided_to", "judge", "act", "section", "case_type", "disposal"];
 const PAGE_SIZE = 20;
 
 function stateFromURL() {
@@ -29,19 +29,17 @@ function navigate(state) {
   run(state);
 }
 
-// The API has no act column yet, so the act filter becomes a quoted phrase in the full-text query.
 function apiParams(state) {
   const p = new URLSearchParams({ page: state.page, page_size: PAGE_SIZE });
-  const q = [state.q, state.act && `"${state.act.replace(/"/g, "")}"`].filter(Boolean).join(" ");
-  if (q) p.set("q", q);
-  for (const f of ["bench", "decided_from", "decided_to", "judge", "case_type", "disposal"]) {
-    if (state[f]) p.set(f, state[f]);
-  }
+  for (const f of FIELDS) if (state[f]) p.set(f, state[f]);
+  // A section on its own means nothing to the API, so drop it until an act is chosen.
+  if (!state.act) p.delete("section");
   return p;
 }
 
 function resultItem(j) {
-  const judges = j.judges?.length ? j.judges.map(titleCase).join(", ") : "";
+  const names = j.bench_judges?.length ? j.bench_judges : j.judges;
+  const judges = names?.length ? names.map(titleCase).join(", ") : "";
   return el("li", {},
     el("a", { class: "title", href: `/judgment?id=${j.id}` }, j.title),
     el("div", { class: "meta" },
@@ -51,6 +49,7 @@ function resultItem(j) {
       judges && ` · ${judges}`,
       el("a", { href: j.pdf_url, target: "_blank", rel: "noopener" }, "PDF"),
     ),
+    j.summary && el("p", { class: "snippet" }, truncate(j.summary, 260)),
   );
 }
 
@@ -98,6 +97,8 @@ async function loadFacets() {
     (stats.total ? `, ${stats.with_text.toLocaleString()} with full text` : "");
   document.getElementById("judges").replaceChildren(
     ...stats.top_judges.map((r) => el("option", { value: r.judge })));
+  document.getElementById("acts").replaceChildren(
+    ...(stats.top_acts || []).map((r) => el("option", { value: r.act })));
   document.getElementById("case-types").replaceChildren(
     ...stats.top_case_types.map((r) => el("option", { value: r.case_type })));
   const disposal = form.elements.disposal;

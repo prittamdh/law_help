@@ -3,7 +3,30 @@
 const content = document.getElementById("content");
 
 function field(label, value) {
-  return value ? [el("dt", {}, label), el("dd", {}, value)] : [];
+  return value && (!Array.isArray(value) || value.length) ? [el("dt", {}, label), el("dd", {}, value)] : [];
+}
+
+function searchLink(params, text) {
+  return el("a", { href: `/?${new URLSearchParams(params)}` }, text);
+}
+
+function joined(nodes, sep = ", ") {
+  return nodes.flatMap((n, i) => [i ? sep : "", n]);
+}
+
+function actsList(acts) {
+  return el("ul", { class: "plain" }, acts.map((a) => el("li", {},
+    searchLink({ act: a.act }, a.act),
+    a.sections.length ? [": ", joined(a.sections.map((s) =>
+      searchLink({ act: a.act, section: s }, /^(Order|Rule)\b/.test(s) ? s : `s. ${s}`)))] : "",
+  )));
+}
+
+function casesList(cases) {
+  return el("ul", { class: "plain" }, cases.map((c) => el("li", {},
+    c.name || "Unnamed case",
+    c.citations?.length ? el("span", { class: "cites" }, ` · ${c.citations.join("; ")}`) : "",
+  )));
 }
 
 async function load() {
@@ -24,25 +47,35 @@ async function load() {
   }
   document.title = `${j.title} · law_help`;
 
-  const judgeLinks = (j.judges || []).flatMap((name, i) => [
-    i ? ", " : "",
-    el("a", { href: `/?judge=${encodeURIComponent(name)}` }, titleCase(name)),
-  ]);
+  // Judges printed on the judgment are more reliable than the eCourts metadata.
+  const judges = j.bench_judges?.length ? j.bench_judges : j.judges || [];
+  const judgeLinks = joined(judges.map((name) => searchLink({ judge: name }, titleCase(name))));
+  const parties = j.parties || {};
+  const advocates = j.advocates || {};
+  // eCourts names the lead parties more reliably; the PDF's lists are used when a side has several.
+  const petitioners = parties.petitioners?.length > 1 ? parties.petitioners.join("; ") : j.petitioner;
+  const respondents = parties.respondents?.length > 1 ? parties.respondents.join("; ") : j.respondent;
 
   content.replaceChildren(el("article", { class: "judgment" },
     el("h1", {}, j.title),
+    j.summary && el("p", { class: "summary-text" }, j.summary),
     el("a", { class: "pdf", href: j.pdf_url, target: "_blank", rel: "noopener" }, "Open the judgment PDF"),
     el("dl", {},
       field("Case", caseNumber(j)),
+      field("Citation", j.neutral_citation),
       field("Bench", [titleCase(j.bench), j.bench_strength && ` (${j.bench_strength} bench)`].join("")),
       field("Decided", formatDate(j.decision_date)),
       field("Registered", formatDate(j.date_of_registration)),
       field("Outcome", titleCase(j.disposal_nature)),
-      judgeLinks.length ? [el("dt", {}, j.judges.length > 1 ? "Judges" : "Judge"), el("dd", {}, judgeLinks)] : [],
-      field("Petitioner", j.petitioner),
-      field("Respondent", j.respondent),
+      field(judges.length > 1 ? "Judges" : "Judge", judgeLinks),
+      field("Petitioner", petitioners),
+      field("For petitioner", (advocates.petitioner || []).join(", ")),
+      field("Respondent", respondents),
+      field("For respondent", (advocates.respondent || []).join(", ")),
       field("CNR", j.cnr),
     ),
+    j.acts_cited?.length ? [el("h2", {}, "Acts and sections cited"), actsList(j.acts_cited)] : "",
+    j.cases_cited?.length ? [el("h2", {}, "Cases cited"), casesList(j.cases_cited)] : "",
     j.description && [el("h2", {}, "Opening lines"), el("div", { class: "text" }, j.description)],
     j.full_text
       ? [el("h2", {}, "Full text"), el("div", { class: "text" }, j.full_text)]
