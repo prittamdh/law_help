@@ -1,0 +1,36 @@
+-- One row per judgment/order PDF published by a court.
+CREATE TABLE IF NOT EXISTS judgments (
+    id                   BIGSERIAL PRIMARY KEY,
+    source               TEXT        NOT NULL,           -- e.g. 'aws-hc-judgments'
+    court                TEXT        NOT NULL,           -- e.g. 'Rajasthan High Court'
+    bench                TEXT        NOT NULL,           -- 'jaipur' | 'jodhpur'
+    cnr                  TEXT,                           -- eCourts Case Number Record
+    pdf_link             TEXT        NOT NULL UNIQUE,    -- path as published by the court
+    pdf_key              TEXT        NOT NULL,           -- object key in the source bucket
+    case_type            TEXT,                           -- e.g. 'CW', 'CRLMB'
+    case_number          INTEGER,
+    case_year            INTEGER,
+    title                TEXT        NOT NULL,
+    petitioner           TEXT,
+    respondent           TEXT,
+    judges               TEXT[]      NOT NULL DEFAULT '{}',
+    bench_strength       TEXT,                           -- 'single' | 'division' | 'full'
+    disposal_nature      TEXT,
+    date_of_registration DATE,
+    decision_date        DATE,
+    description          TEXT,                           -- opening lines of the judgment
+    full_text            TEXT,                           -- extracted from the PDF, when fetched
+    text_extracted_at    TIMESTAMPTZ,
+    imported_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    search               TSVECTOR GENERATED ALWAYS AS (
+        setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+        setweight(to_tsvector('english', coalesce(description, '')), 'B') ||
+        setweight(to_tsvector('english', coalesce(full_text, '')), 'C')
+    ) STORED
+);
+
+CREATE INDEX IF NOT EXISTS judgments_search_idx        ON judgments USING GIN (search);
+CREATE INDEX IF NOT EXISTS judgments_judges_idx        ON judgments USING GIN (judges);
+CREATE INDEX IF NOT EXISTS judgments_decision_date_idx ON judgments (decision_date DESC);
+CREATE INDEX IF NOT EXISTS judgments_case_idx          ON judgments (case_type, case_year, case_number);
+CREATE INDEX IF NOT EXISTS judgments_cnr_idx           ON judgments (cnr);
