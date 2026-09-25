@@ -73,3 +73,10 @@ def test_get_one_and_404(client):
     detail = client.get(f"/judgments/{first['id']}").json()
     assert detail["description"].startswith("Criminal appeal")
     assert client.get("/judgments/999999999").status_code == 404
+
+
+def test_ui_pages_are_served(client):
+    for path in ("/", "/judgment"):
+        res = client.get(path)
+        assert res.status_code == 200 and "<html" in res.text
+    assert client.get("/static/search.js").status_code == 200

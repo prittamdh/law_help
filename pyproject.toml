@@ -23,4 +23,4 @@ build-backend = "setuptools.build_meta"
 packages = ["law_help"]
 
 [tool.setuptools.package-data]
-law_help = ["schema.sql"]
+law_help = ["schema.sql", "static/*"]

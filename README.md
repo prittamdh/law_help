@@ -18,12 +18,18 @@ python -m law_help.importer metadata --year 2024            # both benches, one 
 python -m law_help.importer metadata                         # every year (1989 onward)
 python -m law_help.importer text --limit 500                 # fetch PDFs, extract full text
 
-uvicorn law_help.api:app --reload     # http://localhost:8000/docs
+uvicorn law_help.api:app --reload     # search UI at http://localhost:8000, API docs at /docs
 ```
 
 Set `DATABASE_URL` to point somewhere other than `postgresql://law:law@localhost:5432/law_help`.
 
 The importer is idempotent. Re-running it updates existing rows by PDF link and keeps text that has already been extracted.
+
+## Search UI
+
+`uvicorn` also serves a small search page at `/`. It has a keyword box plus filters for bench, decision dates, judge, act, case type and outcome, and each result opens a detail page with the case details, the extracted text and a link to the PDF. The search lives in the URL, so a search can be bookmarked or shared.
+
+The act filter searches for the act's name as a phrase in the judgment text, so it only finds judgments whose text has been extracted (or whose opening lines name the act).
 
 ## API
 
@@ -43,6 +49,7 @@ Until `text` has run, full-text search only sees the title and the opening lines
 - `law_help/parse.py`: splits eCourts titles into case type/number/year and parties, and parses bench composition and dates
 - `law_help/importer.py`: the metadata and PDF-text importer
 - `law_help/api.py`: the FastAPI search API
+- `law_help/static/`: the search and judgment pages (plain HTML, CSS and JavaScript, no build step)
 
 ## Tests
 
