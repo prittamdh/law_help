@@ -17,7 +17,7 @@ from pathlib import Path
 import httpx
 import pyarrow.parquet as pq
 
-from . import db
+from . import db, extract
 from .parse import BENCHES, bench_strength, parse_date, parse_judges, parse_title
 
 BUCKET_URL = "https://indian-high-court-judgments.s3.ap-south-1.amazonaws.com"
@@ -121,10 +121,36 @@ def import_metadata(years: list[int] | None, benches: list[str] | None) -> int:
     return total
 
 
-def extract_text(limit: int) -> int:
-    """Download PDFs for judgments that have no text yet and store the extracted text."""
-    from pypdf import PdfReader
+STRUCTURE_SQL = """
+UPDATE judgments SET
+    text_language = %(language)s, neutral_citation = %(neutral_citation)s,
+    parties = %(parties)s, advocates = %(advocates)s, bench_judges = %(judges)s,
+    acts_cited = %(acts_cited)s, cases_cited = %(cases_cited)s, summary = %(summary)s,
+    extractor_version = %(extractor_version)s, structured_at = now()
+WHERE id = %(id)s
+"""
 
+
+def _structure_params(judgment_id: int, text: str | None) -> dict:
+    from psycopg.types.json import Jsonb
+
+    fields = extract.extract(text or "")
+    return {
+        "id": judgment_id,
+        "language": fields["language"],
+        "neutral_citation": fields["neutral_citation"],
+        "parties": Jsonb({"petitioners": fields["petitioners"], "respondents": fields["respondents"]}),
+        "advocates": Jsonb(fields["advocates"]),
+        "judges": fields["judges"],
+        "acts_cited": Jsonb(fields["acts_cited"]),
+        "cases_cited": Jsonb(fields["cases_cited"]),
+        "summary": fields["summary"],
+        "extractor_version": fields["extractor_version"],
+    }
+
+
+def extract_text(limit: int) -> int:
+    """Download PDFs for judgments that have no text yet, store the text and its structure."""
     done = 0
     with httpx.Client(timeout=120) as client, db.connect() as conn:
         rows = conn.execute(
@@ -136,17 +162,41 @@ def extract_text(limit: int) -> int:
             try:
                 r = client.get(f"{BUCKET_URL}/{row['pdf_key']}")
                 r.raise_for_status()
-                reader = PdfReader(io.BytesIO(r.content))
-                text = "\n".join(page.extract_text() or "" for page in reader.pages)
-                text = text.replace("\x00", "").strip() or None
+                text = extract.pdf_text(r.content)
             except Exception as exc:  # a bad PDF should not stop the batch
                 log.warning("could not extract %s: %s", row["pdf_key"], exc)
             conn.execute(
                 "UPDATE judgments SET full_text = %s, text_extracted_at = %s WHERE id = %s",
                 (text, datetime.now(timezone.utc), row["id"]),
             )
+            conn.execute(STRUCTURE_SQL, _structure_params(row["id"], text))
             conn.commit()
             done += 1
+    return done
+
+
+def structure(limit: int | None, redo: bool) -> int:
+    """Re-derive structured fields from stored text; no downloads.
+
+    By default only rows never structured, or structured by an older extractor version.
+    """
+    done = 0
+    with db.connect() as conn:
+        db.init_schema(conn)
+        where = "full_text IS NOT NULL"
+        if not redo:
+            where += " AND (extractor_version IS NULL OR extractor_version < %(v)s)"
+        rows = conn.execute(
+            f"SELECT id, full_text FROM judgments WHERE {where} ORDER BY id "
+            + ("LIMIT %(limit)s" if limit else ""),
+            {"v": extract.EXTRACTOR_VERSION, "limit": limit},
+        ).fetchall()
+        for row in rows:
+            conn.execute(STRUCTURE_SQL, _structure_params(row["id"], row["full_text"]))
+            done += 1
+            if done % 500 == 0:
+                conn.commit()
+        conn.commit()
     return done
 
 
@@ -159,8 +209,13 @@ def main(argv: list[str] | None = None) -> None:
     meta.add_argument("--bench", choices=sorted(set(BENCHES.values())), action="append",
                       help="repeatable; default both benches")
 
-    text = sub.add_parser("text", help="download PDFs and extract full text")
+    text = sub.add_parser("text", help="download PDFs, extract full text and structure")
     text.add_argument("--limit", type=int, default=100)
+
+    st = sub.add_parser("structure", help="re-derive parties, acts, citations and summary "
+                                          "from stored text (no downloads)")
+    st.add_argument("--limit", type=int)
+    st.add_argument("--all", action="store_true", help="redo rows already at the current version")
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -168,9 +223,12 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "metadata":
         n = import_metadata(args.year, args.bench)
         print(f"imported {n} judgments")
-    else:
+    elif args.command == "text":
         n = extract_text(args.limit)
         print(f"extracted text for {n} judgments")
+    else:
+        n = structure(args.limit, args.all)
+        print(f"structured {n} judgments")
 
 
 if __name__ == "__main__":

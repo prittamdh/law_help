@@ -16,7 +16,8 @@ pip install -e '.[dev]'
 
 python -m law_help.importer metadata --year 2024            # both benches, one year (~30s)
 python -m law_help.importer metadata                         # every year (1989 onward)
-python -m law_help.importer text --limit 500                 # fetch PDFs, extract full text
+python -m law_help.importer text --limit 500                 # fetch PDFs, extract text and structure
+python -m law_help.importer structure                        # re-derive structure from stored text
 
 uvicorn law_help.api:app --reload     # search UI at http://localhost:8000, API docs at /docs
 ```
@@ -24,6 +25,28 @@ uvicorn law_help.api:app --reload     # search UI at http://localhost:8000, API 
 Set `DATABASE_URL` to point somewhere other than `postgresql://law:law@localhost:5432/law_help`.
 
 The importer is idempotent. Re-running it updates existing rows by PDF link and keeps text that has already been extracted.
+
+## Structured fields
+
+When `text` fetches a PDF it also derives these columns from the judgment itself:
+
+| Column | Example |
+| --- | --- |
+| `neutral_citation` | `2024:RJ-JP:2823` |
+| `parties` | `{"petitioners": ["Bhudev Singh"], "respondents": ["State Of Rajasthan, Through Principal Secretary, ..."]}` |
+| `advocates` | `{"petitioner": ["Mr. Laxmikant Sharma"], "respondent": ["Mr. Syed Zakawat Ali, AGC"]}` |
+| `bench_judges` | `{GANESH RAM MEENA}`, as printed on the judgment |
+| `acts_cited` | `[{"act": "Indian Penal Code, 1860", "sections": ["354", "376"]}]` |
+| `cases_cited` | `[{"name": "Gian Singh v. State of Punjab & Anr.", "citations": ["JT 2012(9) SC 426"]}]` |
+| `summary` | the court's sentence on what was sought, then its sentence on the outcome |
+| `text_language` | `en`, `hi-krutidev` (legacy Hindi font, body fields left empty) or `no-text` (a scan) |
+
+`acts_cited` and `cases_cited` have GIN indexes, so "every judgment citing Section 376 IPC" is
+`acts_cited @> '[{"act": "Indian Penal Code, 1860", "sections": ["376"]}]'`.
+
+The rules are in `law_help/extract.py`. When they change, bump `EXTRACTOR_VERSION` and run
+`structure` to re-derive every row from stored text without downloading anything again.
+Accuracy on hand-labelled judgments is in [eval/README.md](eval/README.md).
 
 ## Search UI
 
@@ -47,7 +70,9 @@ Until `text` has run, full-text search only sees the title and the opening lines
 
 - `law_help/schema.sql`: the `judgments` table, with a weighted `tsvector` (title > opening lines > full text)
 - `law_help/parse.py`: splits eCourts titles into case type/number/year and parties, and parses bench composition and dates
-- `law_help/importer.py`: the metadata and PDF-text importer
+- `law_help/importer.py`: the metadata, PDF-text and structure importer
+- `law_help/extract.py`: pulls parties, advocates, judges, acts, cited cases and a summary out of judgment text
+- `eval/`: hand-labelled judgments and the script that scores the extractor against them
 - `law_help/api.py`: the FastAPI search API
 - `law_help/static/`: the search and judgment pages (plain HTML, CSS and JavaScript, no build step)
 

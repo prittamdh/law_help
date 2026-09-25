@@ -34,3 +34,19 @@ CREATE INDEX IF NOT EXISTS judgments_judges_idx        ON judgments USING GIN (j
 CREATE INDEX IF NOT EXISTS judgments_decision_date_idx ON judgments (decision_date DESC);
 CREATE INDEX IF NOT EXISTS judgments_case_idx          ON judgments (case_type, case_year, case_number);
 CREATE INDEX IF NOT EXISTS judgments_cnr_idx           ON judgments (cnr);
+
+-- Structured fields pulled from full_text by law_help.extract (see `importer structure`).
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS text_language    TEXT;   -- 'en' | 'hi' | 'hi-krutidev' | 'no-text'
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS neutral_citation TEXT;   -- e.g. '2024:RJ-JP:2823'
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS parties          JSONB;  -- {"petitioners": [...], "respondents": [...]}
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS advocates        JSONB;  -- {"petitioner": [...], "respondent": [...]}
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS bench_judges     TEXT[]; -- as printed on the judgment
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS acts_cited       JSONB;  -- [{"act": ..., "sections": [...]}]
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS cases_cited      JSONB;  -- [{"name": ..., "citations": [...]}]
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS summary          TEXT;
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS extractor_version INTEGER;
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS structured_at    TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS judgments_acts_cited_idx       ON judgments USING GIN (acts_cited jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS judgments_cases_cited_idx      ON judgments USING GIN (cases_cited jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS judgments_neutral_citation_idx ON judgments (neutral_citation);

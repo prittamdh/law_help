@@ -1,0 +1,775 @@
+[
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=jaipur/RJHC020082312022_1_2022-02-01.pdf",
+  "title": "SAW/231/2022 of INCOME TAX OFFICER, WARD TONK Vs KAMLA SONI W/O SH. KANHAIYA LAL SONI",
+  "language": "en",
+  "judges": [
+   "PANKAJ BHANDARI",
+   "ANOOP KUMAR DHAND"
+  ],
+  "petitioner": "Office Of The Income Tax Officer, Ito, Wd 1(3), Income Tax Department",
+  "respondent": "Day Night Trading Private Limited",
+  "advocates": {
+   "petitioner": 3,
+   "respondent": 6
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "PANKAJ BHANDARI,ANOOP KUMAR DHAND",
+  "acts": {
+   "Income Tax Act, 1961": [
+    "148",
+    "148A",
+    "149",
+    "149(1)",
+    "149(1)(b)",
+    "151"
+   ],
+   "General Clauses Act, 1897": [
+    "6"
+   ],
+   "Taxation and Other Laws (Relaxation and Amendment of Certain Provisions) Act, 2020": [
+    "3(1)"
+   ],
+   "Finance Act, 2021": [],
+   "Constitution of India": [
+    "14"
+   ]
+  },
+  "cases": [
+   {
+    "parties": [
+     "sudesh",
+     "income tax"
+    ],
+    "citations": []
+   },
+   {
+    "parties": [
+     "kashmir",
+     "khosa"
+    ],
+    "citations": [
+     "AIR 1974 SC 1"
+    ]
+   },
+   {
+    "parties": [
+     "johns",
+     "regional director"
+    ],
+    "citations": [
+     "(2003) 3 SCC 321"
+    ]
+   },
+   {
+    "parties": [
+     "shayara",
+     "union"
+    ],
+    "citations": [
+     "2017 9 SCC 1"
+    ]
+   },
+   {
+    "parties": [
+     "j.k. industries",
+     "union"
+    ],
+    "citations": [
+     "(2007) 13 SCC 673"
+    ]
+   },
+   {
+    "parties": [
+     "indian express",
+     "union"
+    ],
+    "citations": [
+     "(1985) 1 SCC 641"
+    ]
+   }
+  ]
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=jaipur/RJHC020650742016_1_2022-08-31.pdf",
+  "title": "CMA/6252/2016 of SMT SARLA DEVI AND ORS Vs MADHU SINGH AND ORS",
+  "language": "en",
+  "judges": [
+   "ANOOP KUMAR DHAND"
+  ],
+  "petitioner": "Smt. Sarla Devi",
+  "respondent": "Madhu Singh",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "ANOOP KUMAR DHAND",
+  "acts": {},
+  "cases": [
+   {
+    "parties": [
+     "gurcharan",
+     "balraj"
+    ],
+    "citations": []
+   },
+   {
+    "parties": [
+     "jenali",
+     "national insurance"
+    ],
+    "citations": [
+     "2008 ACJ 386"
+    ]
+   },
+   {
+    "parties": [
+     "national insurance",
+     "pranay"
+    ],
+    "citations": [
+     "AIR 2017 SC 5157"
+    ]
+   },
+   {
+    "parties": [
+     "reshma",
+     "madan"
+    ],
+    "citations": [
+     "(2013) 9 SCC 65"
+    ]
+   }
+  ]
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=jaipur/RJHC020677902022_1_2022-08-27.pdf",
+  "title": "CRLMB/12911/2022 of RAMSWAROOP @ RAMPRASAD S/O SHRI RAMESHWARLAL Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "FARJAND ALI"
+  ],
+  "petitioner": "Ramswaroop @ Ramprasad",
+  "respondent": "State Of Rajasthan, Through Public Prosecutor",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "ALLOWED",
+  "metadata_judges": "FARJAND ALI",
+  "acts": {
+   "Code of Criminal Procedure, 1973": [
+    "439"
+   ],
+   "Indian Penal Code, 1860": [
+    "323",
+    "341",
+    "379",
+    "302"
+   ]
+  },
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=jaipur/RJHC020483932022_1_2022-06-27.pdf",
+  "title": "CRLMB/9426/2022 of ROHIT S/O MANOHARLAL Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "FARJAND ALI"
+  ],
+  "petitioner": "Rohit",
+  "respondent": "State Of Rajasthan, Through P.P",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "ALLOWED",
+  "metadata_judges": "FARJAND ALI",
+  "acts": {
+   "Code of Criminal Procedure, 1973": [
+    "439"
+   ],
+   "Indian Penal Code, 1860": [
+    "143",
+    "323",
+    "341",
+    "307"
+   ]
+  },
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=jaipur/RJHC020657222022_1_2022-09-30.pdf",
+  "title": "CRLMB/12627/2022 of HARVINDER KAUR D/O BALWINDER SINGH Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "UMA SHANKER VYAS"
+  ],
+  "petitioner": "Harvinder Kaur",
+  "respondent": "State Of Rajasthan, Through P.p",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "UMA SHANKER VYAS",
+  "acts": {},
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=jaipur/RJHC020717352022_1_2022-09-28.pdf",
+  "title": "CRLMB/13671/2022 of KULDEEP SON OF SHRI RAMPAL Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "PANKAJ BHANDARI"
+  ],
+  "petitioner": "Kuldeep",
+  "respondent": "State Of Rajasthan, Through P.P",
+  "advocates": {
+   "petitioner": 2,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "PANKAJ BHANDARI",
+  "acts": {
+   "Code of Criminal Procedure, 1973": [
+    "439"
+   ],
+   "Narcotic Drugs and Psychotropic Substances Act, 1985": [
+    "8",
+    "15",
+    "25",
+    "29",
+    "37"
+   ]
+  },
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=rhcjodh240618/RJHC010825762018_1_2022-03-23.pdf",
+  "title": "SAW/1449/2019 of STATE OF RAJASTHAN Vs LRS OF FATEH SINGH",
+  "language": "en",
+  "judges": [
+   "SANDEEP MEHTA",
+   "VINOD KUMAR BHARWANI"
+  ],
+  "petitioner": "State Of Rajasthan, Through The Tehsildar, Tehsil Chohtan, District Barmer",
+  "respondent": "Legal Heirs Of Late Shri Fateh Singh",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 0
+  },
+  "neutral_citation": null,
+  "disposal_nature": "PREMPTORY",
+  "metadata_judges": "SANDEEP MEHTA,VINOD KUMAR BHARWANI",
+  "acts": {
+   "Limitation Act, 1963": [
+    "5"
+   ],
+   "Commercial Courts Act, 2015": []
+  },
+  "cases": [
+   {
+    "parties": [
+     "madhya pradesh",
+     "bherulal"
+    ],
+    "citations": [
+     "2020 SCC Online SC 849"
+    ]
+   },
+   {
+    "parties": [
+     "anantnag",
+     "katiji"
+    ],
+    "citations": [
+     "(1987) 2 SCC 107"
+    ]
+   },
+   {
+    "parties": [
+     "post master",
+     "living media"
+    ],
+    "citations": [
+     "(2012) 3 SCC 563"
+    ]
+   },
+   {
+    "parties": [
+     "maharashtra",
+     "borse"
+    ],
+    "citations": [
+     "2021 SCC Online SC 233"
+    ]
+   }
+  ]
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=rhcjodh240618/RJHC010022982021_1_2022-08-22.pdf",
+  "title": "CW/874/2021 of SUSHIL KUMAR CHOUDHARY Vs THE STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "REKHA BORANA"
+  ],
+  "petitioner": "Sushil Kumar Choudhary",
+  "respondent": "The State of Rajasthan, through The Secretary to The Government, Establishment (K-2) Department, Jaipur",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "REKHA BORANA",
+  "acts": {
+   "Pension Rules, 1996": [],
+   "Contributory Pension Rules, 2005": []
+  },
+  "cases": [
+   {
+    "parties": [
+     "durga ram",
+     "state"
+    ],
+    "citations": []
+   },
+   {
+    "parties": [
+     "sushila meena",
+     "state"
+    ],
+    "citations": []
+   }
+  ]
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=rhcjodh240618/RJHC010028222022_1_2022-01-18.pdf",
+  "title": "CW/864/2022 of BHAWANA CHANDRAVANSHI Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "ARUN BHANSALI"
+  ],
+  "petitioner": "Bhawana Chandravanshi",
+  "respondent": "State of Rajasthan through the Secretary, Water Resources Department, Government of Rajasthan, Jaipur",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 0
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISPOSED OF",
+  "metadata_judges": "ARUN BHANSALI",
+  "acts": {
+   "Rajasthan Engineering Subordinate Service (Irrigation Branch) Rules, 1967": [
+    "Rule 6(1A)"
+   ]
+  },
+  "cases": [
+   {
+    "parties": [
+     "charu joshi",
+     "state"
+    ],
+    "citations": []
+   }
+  ]
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=rhcjodh240618/RJHC010448352021_1_2022-03-23.pdf",
+  "title": "CRLMP/4081/2021 of BANWARI LAL Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "DINESH MEHTA"
+  ],
+  "petitioner": "Banwari Lal",
+  "respondent": "State Of Rajasthan, Through Secretary, Department Of Home, Govt. Of Rajasthan, Jaipur",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "DINESH MEHTA",
+  "acts": {},
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=rhcjodh240618/RJHC010760562021_1_2022-01-04.pdf",
+  "title": "CRLMB/16929/2021 of BHURA RAM Vs STATE",
+  "language": "en",
+  "judges": [
+   "DEVENDRA KACHHAWAHA"
+  ],
+  "petitioner": "Bhura Ram",
+  "respondent": "State of Rajasthan through PP",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "ALLOWED",
+  "metadata_judges": "DEVENDRA KACHHAWAHA",
+  "acts": {
+   "Code of Criminal Procedure, 1973": [
+    "439"
+   ],
+   "Narcotic Drugs and Psychotropic Substances Act, 1985": [
+    "8",
+    "15",
+    "22",
+    "29",
+    "25"
+   ]
+  },
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2022/court=8_9/bench=rhcjodh240618/RJHC010391872022_1_2022-07-21.pdf",
+  "title": "CRLMB/7884/2022 of KANTU RAM Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "RAMESHWAR VYAS"
+  ],
+  "petitioner": "Kantu Ram",
+  "respondent": "State Of Rajasthan, Through PP",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "RAMESHWAR VYAS",
+  "acts": {},
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=jaipur/RJHC020347912018_1_2019-08-22.pdf",
+  "title": "CW/5529/2018 of NIRBHAY SINGH Vs STATE OF RAJ AND ORS",
+  "language": "en",
+  "judges": [
+   "S. RAVINDRA BHAT",
+   "SANJEEV PRAKASH SHARMA"
+  ],
+  "petitioner": "Aas Mohammad",
+  "respondent": "State Of Rajasthan, through its Principal Secretary, Transport Department, Secretariat, Jaipur",
+  "advocates": "unverified",
+  "neutral_citation": null,
+  "disposal_nature": "DISPOSED OF",
+  "metadata_judges": "S. RAVINDRA BHAT,SANJEEV PRAKASH SHARMA"
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=jaipur/RJHC020902512019_1_2019-10-18.pdf",
+  "title": "CW/17340/2019 of DINESH KHIRIYA S/O  SHRI KAILASH SINGH Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "SANJEEV PRAKASH SHARMA"
+  ],
+  "petitioner": "Dinesh Khiriya",
+  "respondent": "State Of Rajasthan, Through Principal Secretary, Department Of Revenue, Government Of Rajasthan, Secretariat, Jaipur",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 0
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISPOSED OF",
+  "metadata_judges": "SANJEEV PRAKASH SHARMA",
+  "acts": {
+   "Act of 1976 (service tribunals; not named in the order)": []
+  },
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=jaipur/RJHC020947762019_1_2019-12-17.pdf",
+  "title": "CW/18072/2019 of BANTI S/O VISHRAM Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "ASHOK KUMAR GAUR"
+  ],
+  "petitioner": "Banti",
+  "respondent": "State Of Rajasthan, Through The Principal Secretary To The Government, Mines Department Government Of Rajasthan, Secretariat Jaipur",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "ASHOK KUMAR GAUR",
+  "acts": {},
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=jaipur/RJHC020237022018_1_2019-08-22.pdf",
+  "title": "CUSTA/71/2018 of CCE AND ST JAIPUR-1 COMMISSIONER OF CUSTOM Vs ROCHI RAM AND SONS",
+  "language": "no-text",
+  "judges": [
+   "S. RAVINDRA BHAT",
+   "INDERJEET SINGH"
+  ],
+  "petitioner": "CCE And ST Jaipur-1 Commissioner Of Custom",
+  "respondent": "Rochi Ram And Sons",
+  "advocates": "unverified",
+  "neutral_citation": null,
+  "disposal_nature": "PEREMPTORY",
+  "metadata_judges": "S. RAVINDRA BHAT,INDERJEET SINGH"
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=jaipur/RJHC020972032019_1_2019-11-07.pdf",
+  "title": "CRLMP/6970/2019 of MAYURI JAIN D/O LATE MUKESH JAIN Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "PANKAJ BHANDARI"
+  ],
+  "petitioner": "Mayuri Jain",
+  "respondent": "State Of Rajasthan, Through Secretary, Department Of Home Affairs, And Justice, Secretariat, Rajasthan, Jaipur",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "ALLOWED",
+  "metadata_judges": "PANKAJ BHANDARI",
+  "acts": {},
+  "cases": [
+   {
+    "parties": [
+     "nisha tanwar",
+     "state"
+    ],
+    "citations": []
+   }
+  ]
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=jaipur/RJHC020080772019_1_2019-02-04.pdf",
+  "title": "CW/2021/2019 of GOVIND SINGH S/O KHAYALI RAM MEENA Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "ALOK SHARMA"
+  ],
+  "petitioner": "Govind Singh",
+  "respondent": "State Of Rajasthan, Through Secretary, Department Of Personnel, Government Of Rajasthan, Secretariat, Jaipur",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 0
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISPOSED OF",
+  "metadata_judges": "ALOK SHARMA",
+  "acts": {},
+  "cases": [
+   {
+    "parties": [
+     "anita choudhary",
+     "state"
+    ],
+    "citations": []
+   },
+   {
+    "parties": [
+     "jitendra",
+     "state"
+    ],
+    "citations": []
+   }
+  ]
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=rhcjodh240618/RJHC010779062018_1_2019-05-10.pdf",
+  "title": "CW/17574/2018 of KHIVRAJ Vs THE STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "ARUN BHANSALI"
+  ],
+  "petitioner": "Arun Kumar",
+  "respondent": "State Of Rajasthan, Through The Home Secretary, Government Of Rajasthan, Secretariat, Jaipur, Rajasthan",
+  "advocates": {
+   "petitioner": 6,
+   "respondent": 2
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISPOSED OF",
+  "metadata_judges": "ARUN BHANSALI",
+  "acts": {
+   "Constitution of India": [
+    "14",
+    "16"
+   ]
+  },
+  "cases": [
+   {
+    "parties": [
+     "utkarsh",
+     "state"
+    ],
+    "citations": []
+   },
+   {
+    "parties": [
+     "ran vijay",
+     "u.p"
+    ],
+    "citations": [
+     "(2018) 2 SCC 357"
+    ]
+   },
+   {
+    "parties": [
+     "rameshvri",
+     "state"
+    ],
+    "citations": []
+   },
+   {
+    "parties": [
+     "hamir",
+     "state"
+    ],
+    "citations": []
+   }
+  ]
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=rhcjodh240618/RJHC010729542018_1_2019-02-11.pdf",
+  "title": "CW/17297/2018 of SHANTI DEVI Vs STATE OF RAJASTHAN",
+  "language": "en",
+  "judges": [
+   "ARUN BHANSALI"
+  ],
+  "petitioner": "Shanti Devi",
+  "respondent": "State Of Rajasthan, Through Secretary, Medical And Health Department, Government Of Rajasthan, Jaipur",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 2
+  },
+  "neutral_citation": null,
+  "disposal_nature": "ALLOWED",
+  "metadata_judges": "ARUN BHANSALI",
+  "acts": {},
+  "cases": [
+   {
+    "parties": [
+     "govind dan",
+     "state"
+    ],
+    "citations": []
+   },
+   {
+    "parties": [
+     "union",
+     "tarsem"
+    ],
+    "citations": [
+     "(2008) 8 SCC 648"
+    ]
+   },
+   {
+    "parties": [
+     "ramchandra",
+     "state"
+    ],
+    "citations": []
+   },
+   {
+    "parties": [
+     "state",
+     "jagdish"
+    ],
+    "citations": [
+     "(2009) 12 SCC 49"
+    ]
+   }
+  ]
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=rhcjodh240618/RJHC010469822019_1_2019-07-23.pdf",
+  "title": "CRLMB/8606/2019 of KALU RAM Vs STATE",
+  "language": "en",
+  "judges": [
+   "VIJAY BISHNOI"
+  ],
+  "petitioner": "Kalu Ram",
+  "respondent": "The State of Rajasthan",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "VIJAY BISHNOI",
+  "acts": {
+   "Code of Criminal Procedure, 1973": [
+    "438"
+   ]
+  },
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=rhcjodh240618/RJHC010510802019_1_2019-10-21.pdf",
+  "title": "CW/12414/2019 of ARUN SINGH Vs SUSHIL KUMAR MODI",
+  "language": "en",
+  "judges": [
+   "DINESH MEHTA"
+  ],
+  "petitioner": "Arun Singh",
+  "respondent": "Sushil Kumar Modi",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 0
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "DINESH MEHTA",
+  "acts": {},
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=rhcjodh240618/RJHC010245062018_1_2019-11-05.pdf",
+  "title": "CW/2722/2018 of SHIKESH KANKARIYA Vs STATE AND ORS",
+  "language": "en",
+  "judges": [
+   "ARUN BHANSALI"
+  ],
+  "petitioner": "Shikesh Kankariya",
+  "respondent": "State Of Rajasthan, Through The Secretary, Local Self Bodies, Government Of Rajasthan, Secretariat, Jaipur",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 0
+  },
+  "neutral_citation": null,
+  "disposal_nature": "DISMISSED",
+  "metadata_judges": "ARUN BHANSALI",
+  "acts": {},
+  "cases": []
+ },
+ {
+  "pdf_key": "data/pdf/year=2019/court=8_9/bench=rhcjodh240618/RJHC010162092019_1_2019-03-15.pdf",
+  "title": "SOSA/299/2019 of SMT PEMMI DEVI Vs STATE",
+  "language": "en",
+  "judges": [
+   "MANOJ KUMAR GARG"
+  ],
+  "petitioner": "Smt Pemmi Devi",
+  "respondent": "State, Through PP",
+  "advocates": {
+   "petitioner": 1,
+   "respondent": 1
+  },
+  "neutral_citation": null,
+  "disposal_nature": "ALLOWED",
+  "metadata_judges": "MANOJ KUMAR GARG",
+  "acts": {
+   "Code of Criminal Procedure, 1973": [
+    "389"
+   ]
+  },
+  "cases": []
+ }
+]
