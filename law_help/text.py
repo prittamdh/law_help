@@ -52,7 +52,8 @@ RETRIES = 4
 
 TEXT_SQL = STRUCTURE_SQL.replace(
     "UPDATE judgments SET",
-    "UPDATE judgments SET full_text = %(text)s, text_error = %(error)s, text_extracted_at = now(),",
+    "UPDATE judgments SET full_text = %(text)s, full_text_original = %(original)s, text_error = %(error)s, "
+    "text_extracted_at = now(),",
 )
 
 
@@ -61,22 +62,23 @@ TEXT_SQL = STRUCTURE_SQL.replace(
 
 def parse_pdf(data: bytes) -> dict:
     """Text, parse error (if any) and structured fields for one PDF. Runs in a worker."""
-    text, error = None, None
+    text, original, error = None, None, None
     try:
         text = extract.pdf_text(data)
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"[:300]
     try:
+        text, original = extract.readable(text)
         fields = extract.extract(text or "")
     except Exception as exc:  # a rule bug must not cost the text, or stop the run
         error = f"structure: {type(exc).__name__}: {exc}"[:300]
         fields = extract.extract("")
-    return {"text": text, "error": error, "fields": fields}
+    return {"text": text, "original": original, "error": error, "fields": fields}
 
 
 def _row(judgment_id: int, parsed: dict) -> dict:
     params = _structure_params(judgment_id, parsed["text"], parsed["fields"])
-    params.update(text=parsed["text"], error=parsed["error"])
+    params.update(text=parsed["text"], original=parsed.get("original"), error=parsed["error"])
     return params
 
 

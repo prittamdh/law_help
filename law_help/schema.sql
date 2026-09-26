@@ -82,3 +82,7 @@ CREATE TABLE IF NOT EXISTS text_archives (
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS ai_summary       JSONB;
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS ai_summary_model TEXT;
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS ai_summarized_at TIMESTAMPTZ;
+
+-- Hindi typed in the legacy Kruti Dev font: full_text holds the Unicode conversion, and this
+-- the text as extracted, so `importer hindi` can re-convert it when the converter improves.
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS full_text_original TEXT;
