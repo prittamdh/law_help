@@ -52,7 +52,7 @@ function citedBy(j) {
     el("h2", {}, `Cited by ${j.cited_by_total} later ${j.cited_by_total > 1 ? "judgments" : "judgment"}`),
     judgmentLinks(j.cited_by),
     more > 0 ? el("p", { class: "note" }, `Showing the latest ${j.cited_by.length}.`) : "",
-    el("p", { class: "note" }, "Found by matching case numbers cited in later judgments; some citations are missed."),
+    el("p", { class: "note" }, "Found by matching the case numbers and Supreme Court citations in later judgments; some citations are missed."),
   ];
 }
 
@@ -223,6 +223,7 @@ async function load() {
   content.replaceChildren(el("article", { class: "judgment" },
     el("h1", {}, j.title),
     j.headline && el("p", { class: "headline" }, j.headline),
+    j.landmark && el("p", {}, landmarkChip(j)),
     treatedBy(j),
     summaryBlock(j),
     j.key_reasoning && el("section", { class: "key-reasoning" },
@@ -250,7 +251,7 @@ async function load() {
     j.acts_cited?.length ? [el("h2", {}, "Acts and sections cited"), actsList(j.acts_cited, bareActs)] : "",
     citedBy(j),
     j.cases_cited?.length ? [el("h2", {}, "Cases cited"), casesList(j.cases_cited)] : "",
-    j.cites?.length ? [el("h2", {}, "Earlier judgments of this court it cites"), judgmentLinks(j.cites)] : "",
+    j.cites?.length ? [el("h2", {}, "Earlier judgments it cites"), judgmentLinks(j.cites)] : "",
     j.description && [el("h2", {}, j.court === "Supreme Court of India" ? "Headnote" : "Opening lines"),
       el("div", { class: "text" }, j.description)],
     j.full_text

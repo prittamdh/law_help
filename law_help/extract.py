@@ -345,7 +345,9 @@ _STATUTE = (r"(?-i:[A-Z][A-Za-z.'&/-]*"
 
 # 302, 120-B, 498A, 14 A(2), 3(1)(r): a suffix is one capital letter that does not start a word
 _SEC_NUM = r"\d{1,4}(?-i:\s?-?\s?[A-Z](?![A-Za-z]|\.[A-Za-z]))?(?:\s?\(\s?[0-9a-z]{1,4}\s?\))*"
-_SEC_LIST = rf"{_SEC_NUM}(?:\s*(?:,|/|&|and|r/w|read with|or|to)\s*{_SEC_NUM})*"
+# Atomic, so a long list that turns out not to be followed by an act fails at once instead
+# of trying every way to split it (a 1980 judgment listing 300 case numbers took hours).
+_SEC_LIST = rf"(?>{_SEC_NUM}(?:\s*(?:,|/|&|and|r/w|read with|or|to)\s*{_SEC_NUM})*)"
 _PROVISION_RE = re.compile(  # "Sections 420, 467 and 120-B of IPC", "u/s 8/15 NDPS Act"
     rf"\b(?P<kind>Order\s*[IVXL\d]+\s*,?\s*Rules?|Sections?|Secs?\.?|S\.|u/s\.?|under section|"
     rf"Articles?|Art\.|Rules?)\s*"
@@ -1089,6 +1091,12 @@ def sc_outcome(text: str) -> str | None:
     return None
 
 
+# "s. 120-B of the Penal Code" leaves a stray "B of the Penal Code" behind, a margin letter
+# "G the Land Acquisition Act", and old reports say "the Amendment Act" for the act in hand.
+_SC_JUNK_ACT_RE = re.compile(r"[A-Z] (?:of|the) |(?:Amendment|Amending|Control|Principal|Parent|Central|"
+                             r"State|Main|Present|Said|This|That|Earlier|Old|New) Act$")
+
+
 def _is_own_case(cited: dict, head: dict) -> bool:
     """Older volumes print the case's own name in the margin; that is not a citation."""
     if cited["citations"] or not cited["name"] or not head["petitioners"] or not head["respondents"]:
@@ -1123,8 +1131,7 @@ def extract_sc(text: str) -> dict:
         "advocates": {"petitioner": [], "respondent": []},
         "judges": head["judges"],
         "order_date": head["order_date"],
-        # "s. 120-B of the Penal Code" can leave a stray "B of the Penal Code" act behind
-        "acts_cited": [a for a in acts_cited(b) if not re.match(r"[A-Z] of ", a["act"])],
+        "acts_cited": [a for a in acts_cited(b) if not _SC_JUNK_ACT_RE.match(a["act"])],
         "cases_cited": [c for c in cases_cited(b) if not _is_own_case(c, head)],
         "case_refs": [],  # these point at Rajasthan HC case numbers, which an SC judgment doesn't use
         "summary": brief,

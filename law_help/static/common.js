@@ -58,6 +58,12 @@ function goodLawChip(kind) {
   return kind ? el("span", { class: `chip bad-law${kind === "partly_set_aside" ? " partly" : ""}` }, GOOD_LAW[kind]) : "";
 }
 
+// Landmark (law_help.landmark): cited by many later judgments.
+function landmarkChip(j) {
+  return j.landmark ? el("span", { class: "chip landmark", title: `Cited by ${j.cited_by_count} later judgments` },
+    `Landmark · cited ${j.cited_by_count}×`) : "";
+}
+
 function courtLabel(j) {
   return j.court === "Supreme Court of India" ? "Supreme Court" : titleCase(j.bench);
 }
