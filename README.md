@@ -152,6 +152,20 @@ Court set aside are not flagged yet.
 
 The act and section filters use the acts each judgment cites (see `importer structure`), so they only find judgments whose text has been extracted. The act box accepts short forms such as `IPC` or `NDPS Act`. The detail page also shows the summary, the neutral citation, advocates, the acts and sections cited (each one links to a search), and the cases cited.
 
+## Bare Acts
+
+`/acts` has the text of twelve acts, section by section: the BNS, BNSS and BSA, the IPC, CrPC and Evidence Act they replaced on 1 July 2024, the Constitution, the CPC (sections and every Order and Rule), and the NI, Motor Vehicles, Contract and IT Acts. A section page shows its text, the same provision in the old or new code, and the judgments that cite it. Section numbers on a judgment page link there.
+
+The old-to-new map is also used by search: filtering on IPC s. 302 finds judgments citing BNS s. 103 too, and the other way round (`equivalent=false` turns this off). A search for a section also matches its sub-sections as judgments cite them (BNS 103 finds "103(1)").
+
+Where the data comes from, all free:
+
+- Act texts: India Code PDFs, the Gazette of India for a few BNSS sections one edition garbles, and [civictech-India/Indian-Law-Penal-Code-Json](https://github.com/civictech-India/Indian-Law-Penal-Code-Json) for the Evidence, NI and MV Acts and the IPC sections added in 2018. Acts of Parliament may be reproduced freely (Copyright Act, s. 52(1)(q)).
+- IPC to BNS: NCRB's "Corresponding Section Table" in its Sankalan edition of the BNS.
+- CrPC to BNSS and Evidence Act to BSA: matched by wording, since the new codes copy most sections. Each new provision is paired with the old section it shares the most text with. Checked against 60 well-known pairs (`tests/test_bareacts.py`); the same method agrees with NCRB's IPC table on 95% of pairs.
+
+The JSON under `law_help/data` is committed, so the site needs no download. To rebuild it from the source files: `python scripts/build_bare_acts.py DIR` then `python scripts/build_section_map.py DIR`.
+
 ## Keeping it current
 
 `python -m law_help.importer update` is the one command to schedule daily (for example `0 6 * * *` in cron). It asks the bucket for the ETag of every year's metadata file (about 20 seconds), re-imports only the files that changed since the last run, then fetches PDFs and extracts text for up to `--text-limit` (default 1000) judgments that have none yet, newest first. ETags are stored in the `source_partitions` table. Two runs can't overlap, and a run that dies partway just redoes the unfinished file next time. On an empty database the first run imports every year. `--dry-run` lists what changed without importing.
@@ -165,6 +179,9 @@ The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan upd
 | `GET /judgments` | Search and filter: `q` (full text), `judge` (matches the eCourts judges or the judges printed on the PDF), `act` and `section`, `case_type`, `bench`, `disposal`, `decided_from`, `decided_to`, `page`, `page_size` |
 | `GET /judgments/{id}` | One judgment with its description and extracted text, `cited_by`, `cites`, and `treated_by` (later judgments that set it aside, recalled or overruled it) |
 | `GET /stats` | Totals by bench, the top judges, acts, case types and outcomes |
+| `GET /api/acts` | The bare acts, with section counts and which code replaced which |
+| `GET /api/acts/{act}` | An act's sections and chapters (`ipc`, `bns`, `crpc`, `bnss`, `evidence`, `bsa`, `cpc`, `constitution`, ...) |
+| `GET /api/acts/{act}/sections/{number}` | A section's text, its old or new counterpart, and the latest judgments citing it |
 
 Every result carries a `pdf_url` that points at the original judgment PDF, and `good_law`:
 `set_aside`, `partly_set_aside`, `recalled`, `overruled`, or null.
@@ -183,6 +200,7 @@ Until `text` has run, full-text search only sees the title and the opening lines
 - `eval/`: hand-labelled judgments and the script that scores the extractor against them
 - `law_help/summarize.py`: model-written summaries (summary, issues, holding, outcome) from local Ollama or the Claude API, stored in `ai_summary`
 - `law_help/api.py`: the FastAPI search API
+- `law_help/bareacts.py`, `law_help/acts_api.py`: bare acts and the old-to-new section map; `law_help/data/` holds them, built by `scripts/`
 - `law_help/static/`: the search and judgment pages (plain HTML, CSS and JavaScript, no build step)
 
 ## Tests

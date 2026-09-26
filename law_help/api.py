@@ -12,7 +12,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 
-from . import db
+from . import bareacts, db
+from .acts_api import router as acts_router
 from .extract import CASE_KINDS, canonical_act, headline
 from .importer import pdf_url
 from .landmark import landmark_sql
@@ -24,6 +25,7 @@ COURTS = {"supreme": SUPREME_COURT, "rajasthan": "Rajasthan High Court"}
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.include_router(acts_router)
 
 
 @app.get("/", include_in_schema=False)
@@ -59,7 +61,11 @@ def get_conn():
 
 
 def normalize_section(section: str) -> str:
-    """Match how law_help.extract stores sections: '120 - b' -> '120B', 'Sec. 3(1)(r)' -> '3(1)(r)'."""
+    """Match how law_help.extract stores sections: '120 - b' -> '120B', 'Sec. 3(1)(r)' -> '3(1)(r)',
+    'order 7 rule 11' -> 'Order VII Rule 11'."""
+    if m := re.match(r"\s*order\s*([ivxl]+|\d+)\s*,?\s*rule\s*(\w+)\s*$", section, re.I):
+        order = m[1].upper() if not m[1].isdigit() else m[1]
+        return bareacts.section_key(f"Order {order} Rule {m[2].upper()}")
     s = re.sub(r"^\s*(?:sections?|secs?\.?|s\.|u/s\.?)\s*", "", section, flags=re.I)
     s = re.sub(r"[\s-]+", "", s)
     return re.sub(r"^(\d+)([a-z])(?![a-z])", lambda m: m[1] + m[2].upper(), s)
@@ -77,6 +83,8 @@ def search_judgments(
     judge: str | None = Query(None, description="exact judge name, e.g. SAMEER JAIN"),
     act: str | None = Query(None, description="act cited, e.g. IPC or Indian Penal Code, 1860"),
     section: str | None = Query(None, description="section of `act`, e.g. 302 or 120-B"),
+    equivalent: bool = Query(True, description="also match the same section in the old or new code "
+                             "(IPC 302 also finds BNS 103)"),
     case_type: str | None = Query(None, description="e.g. CW, CRLMB"),
     court: str | None = Query(None, pattern="^(supreme|rajasthan)$", description="supreme or rajasthan (HC)"),
     bench: str | None = Query(None, pattern="^(jaipur|jodhpur)$"),
@@ -98,12 +106,15 @@ def search_judgments(
         params["judge"] = judge.strip().upper()
     if section and not act:
         raise HTTPException(422, "section needs an act")
-    if act:
-        cited = {"act": canonical_act(act)}
-        if section:
-            cited["sections"] = [normalize_section(section)]
+    added = []
+    if act and section:
+        # The section as judgments cite it, and its counterpart in the old or new code (IPC 302 is BNS 103).
+        forms, added = bareacts.search_forms(canonical_act(act), normalize_section(section), equivalent)
+        where.append("(" + " OR ".join(f"acts_cited @> %(cited{i})s" for i in range(len(forms))) + ")")
+        params.update({f"cited{i}": Jsonb([f]) for i, f in enumerate(forms)})
+    elif act:
         where.append("acts_cited @> %(acts_cited)s")
-        params["acts_cited"] = Jsonb([cited])
+        params["acts_cited"] = Jsonb([{"act": canonical_act(act)}])
     if case_type:
         where.append("case_type = %(case_type)s")
         params["case_type"] = case_type.upper()
@@ -143,7 +154,7 @@ def search_judgments(
         "LIMIT %(limit)s OFFSET %(offset)s",
         params,
     ).fetchall()
-    return {"total": total, "page": page, "page_size": page_size,
+    return {"total": total, "page": page, "page_size": page_size, "equivalents": added,
             "results": [_present(r) for r in rows]}
 
 

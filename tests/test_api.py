@@ -134,3 +134,26 @@ def test_citation_line_formats():
     assert citation_line(j) == ("Ram & Ors. v. Union of India, 2024:RJ-JD:12345-DB (Raj.) "
                                 "[D.B. Civil Writ Petition No. 5/2020, decided on 01.03.2023, Jodhpur Bench]")
     assert citation_line({"title": "CW/1/2020 of A Vs B"}) == "A v. B (Raj.)"
+
+
+def test_section_search_also_finds_the_new_code(client):
+    # The fixture cites IPC 120B, which BNS s. 61(2) replaced.
+    body = client.get("/judgments", params={"act": "BNS", "section": "61"}).json()
+    assert body["total"] == 1
+    assert [(e["act"], e["ref"]) for e in body["equivalents"]] == [("ipc", "120A"), ("ipc", "120B")]
+    assert client.get("/judgments", params={"act": "BNS", "section": "61", "equivalent": "false"}).json()["total"] == 0
+    assert client.get("/judgments", params={"act": "IPC", "section": "120-B"}).json()["equivalents"][0]["ref"] == "61(2)"
+
+
+def test_bare_act_pages(client):
+    assert client.get("/acts").status_code == 200
+    acts = {a["slug"]: a for a in client.get("/api/acts").json()}
+    assert acts["ipc"]["replaced_by"] == "bns" and acts["bns"]["replaces"] == "ipc"
+    contents = client.get("/api/acts/cpc").json()
+    assert any(s["number"] == "Order VII Rule 11" for s in contents["sections"])
+    sec = client.get("/api/acts/ipc/sections/120B").json()
+    assert sec["title"] == "Punishment of criminal conspiracy"
+    assert sec["equivalents"][0]["ref"] == "61(2)"
+    assert sec["cited_by"]["total"] == 1
+    assert client.get("/api/acts/ipc/sections/9999").status_code == 404
+    assert client.get("/api/acts/nope").status_code == 404
