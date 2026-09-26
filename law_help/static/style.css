@@ -103,7 +103,12 @@ article.judgment h1 { font-size: 20px; margin: 0 0 6px; }
 article.judgment dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 16px 0; }
 article.judgment dt { color: var(--muted); font-size: 13px; }
 article.judgment dd { margin: 0; }
-article.judgment .pdf { display: inline-block; margin: 6px 0 12px; font-weight: 600; }
+article.judgment .cite-box { margin: 10px 0 12px; padding: 10px 12px; background: var(--accent-soft); border-radius: 6px; }
+article.judgment .citation { margin: 0 0 8px; font: 14px/1.5 Georgia, "Times New Roman", serif; user-select: all; }
+article.judgment .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+article.judgment .actions button { padding: 6px 12px; font-size: 13px; }
+article.judgment .actions button + button { background: var(--panel); color: var(--accent); border: 1px solid var(--line); }
+article.judgment .pdf { font-weight: 600; font-size: 13px; }
 article.judgment h2 { font-size: 15px; margin: 20px 0 8px; }
 article.judgment .text {
   white-space: pre-wrap; font: 14px/1.6 Georgia, "Times New Roman", serif;
@@ -111,3 +116,24 @@ article.judgment .text {
   padding: 12px; max-height: 70vh; overflow: auto;
 }
 footer.site { color: var(--muted); font-size: 12px; text-align: center; padding: 24px 16px; }
+
+/* Saved judgments */
+.save-panel { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.save-panel .save-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; width: 100%; }
+.save-panel .folder-checks { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; width: 100%; }
+.save-panel .folder-check { font-size: 14px; display: inline-flex; gap: 4px; align-items: center; }
+.saved-link { font-size: 13px; }
+.save-panel input, .save-panel textarea, ol.results textarea, aside.filters form input {
+  padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); color: var(--text); font: inherit; font-size: 14px;
+}
+.save-panel textarea, ol.results textarea { width: 100%; resize: vertical; margin-top: 6px; }
+ul.folders { list-style: none; margin: 0 0 10px; padding: 0; }
+ul.folders li a { display: block; padding: 5px 8px; border-radius: 5px; text-decoration: none; color: var(--text); }
+ul.folders li.active a { background: var(--accent-soft); }
+ul.folders .count { color: var(--muted); font-size: 12px; }
+aside.filters h2.gap { margin-top: 18px; }
+.button-like { display: inline-block; padding: 9px 16px; border-radius: 6px; background: var(--chip); color: var(--text) !important; font-size: 15px !important; margin: 0 !important; cursor: pointer; line-height: normal; }
+.folder-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.folder-head h1 { font-size: 20px; margin: 0; }
+ol.results .actions { margin-top: 4px; text-align: right; }
+ol.results .meta .chip { margin-left: 6px; }

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 
 from . import db
-from .extract import canonical_act, headline
+from .extract import CASE_KINDS, canonical_act, headline
 from .importer import BUCKET_URL
 
 app = FastAPI(title="law_help", description="Search Rajasthan High Court judgments")
@@ -30,6 +30,11 @@ def search_page():
 @app.get("/judgment", include_in_schema=False)
 def judgment_page():
     return FileResponse(STATIC_DIR / "judgment.html")
+
+
+@app.get("/saved", include_in_schema=False)
+def saved_page():
+    return FileResponse(STATIC_DIR / "saved.html")
 
 
 LIST_COLUMNS = """
@@ -138,7 +143,45 @@ def get_judgment(judgment_id: int, conn=Depends(get_conn)):
     row["cited_by_total"] = row["cited_by"][0]["total"] if row["cited_by"] else 0
     row["cites"] = conn.execute(CITES_SQL, (judgment_id,)).fetchall()
     row["treated_by"] = conn.execute(TREATED_BY_SQL, (judgment_id,)).fetchall()
+    row["citation"] = citation_line(row)
     return _present(row)
+
+
+# Long names used when citing; other codes fall back to the headline names, then the code.
+_CITE_KINDS = {"CW": "Civil Writ Petition", "SAW": "Special Appeal (Writ)", "HC": "Habeas Corpus Petition"}
+
+
+_SMALL_WORDS = {"of", "and", "the", "for", "through", "thr", "by", "in"}
+
+
+def _party(name: str | None, others: list | None) -> str:
+    words = (name or "").split()
+    name = " ".join(w.lower() if i and w.lower() in _SMALL_WORDS
+                    else w.capitalize() if w.isupper() or w.islower() else w for i, w in enumerate(words))
+    return f"{name} & Ors." if name and others and len(others) > 1 else name
+
+
+def citation_line(j: dict) -> str:
+    """Ready-to-cite line, e.g. 'Ladu v. State, 2024:RJ-JP:2823 (Raj.) [S.B. Criminal Appeal No. 28/1994,
+    decided on 20.05.2024, Jaipur Bench]'."""
+    parties = j.get("parties") or {}
+    pet = _party(j.get("petitioner"), parties.get("petitioners"))
+    res = _party(j.get("respondent"), parties.get("respondents"))
+    if pet and res:
+        name = f"{pet} v. {res}"
+    else:
+        name = re.sub(r"\s+Vs\.?\s+", " v. ", re.sub(r"^\S+ of ", "", j.get("title") or ""), flags=re.I)
+    head = f"{name}, {j['neutral_citation']} (Raj.)" if j.get("neutral_citation") else f"{name} (Raj.)"
+    details = []
+    if j.get("case_type") and j.get("case_number") is not None:
+        kind = _CITE_KINDS.get(j["case_type"]) or CASE_KINDS.get(j["case_type"], j["case_type"]).title()
+        prefix = {"single": "S.B. ", "division": "D.B. "}.get(j.get("bench_strength") or "", "")
+        details.append(f"{prefix}{kind} No. {j['case_number']}/{j['case_year']}")
+    if j.get("decision_date"):
+        details.append(f"decided on {j['decision_date']:%d.%m.%Y}")
+    if j.get("bench"):
+        details.append(f"{j['bench'].title()} Bench")
+    return f"{head} [{', '.join(details)}]" if details else head
 
 
 CITED_BY_LIMIT = 200

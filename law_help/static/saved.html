@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Saved judgments · law_help</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">law_help</a>
+    <span><a href="/">Search</a></span>
+  </header>
+  <main>
+    <div class="layout">
+      <aside class="filters">
+        <h2>Folders</h2>
+        <ul class="folders" id="folders"></ul>
+        <form id="new-folder" class="row">
+          <input name="name" placeholder="New folder, e.g. client case" aria-label="New folder name" required>
+          <button type="submit">Add folder</button>
+        </form>
+        <h2 class="gap">Backup</h2>
+        <p class="hint">Saved judgments live only in this browser. Download a file to keep a copy or move them to another computer.</p>
+        <div class="actions">
+          <button type="button" id="export">Download</button>
+          <label class="button-like">Load file<input type="file" id="import" accept=".json,application/json" hidden></label>
+        </div>
+      </aside>
+      <section>
+        <div class="folder-head">
+          <h1 id="folder-title">All saved</h1>
+          <span id="folder-actions"></span>
+        </div>
+        <ol class="results" id="saved"></ol>
+      </section>
+    </div>
+  </main>
+  <footer class="site">Your folders and notes are stored in this browser only.</footer>
+  <script src="/static/common.js"></script>
+  <script src="/static/saved-store.js"></script>
+  <script src="/static/saved.js"></script>
+</body>
+</html>
