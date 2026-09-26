@@ -35,7 +35,7 @@ For a backfill it streams the dataset's per-year tar archives (`data/tar/...`, 4
 
 On a 16-vCPU cloud sandbox, 2023 and 2024 (210,558 judgments, 14 GB of PDFs) took 12 minutes at 271 judgments a second, bound by CPU. The whole collection (about 1.1 million judgments, 79 GB) should take a little over an hour on the same machine, and the database grows by about 11 KB per judgment (12 GB in all).
 
-A PDF that can't be parsed is marked done with `text_language = 'no-text'` and the reason in `text_error`; `--retry-errors` tries those again. In 2023 and 2024 that was 10 PDFs the dataset lists but doesn't have. A PDF that can't be downloaded is left for the next run.
+A PDF that can't be parsed is marked done with `text_language = 'no-text'` and the reason in `text_error`. If the text is fine but deriving the structured fields fails, the text is kept and `text_error` starts with `structure:`. In both cases `--retry-errors` tries again. In 2023 and 2024 there were 10 unparseable files, all PDFs the dataset lists but doesn't have. A PDF that can't be downloaded is left for the next run.
 
 ## AI summaries
 

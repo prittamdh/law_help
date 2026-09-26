@@ -149,3 +149,8 @@ def test_structure_command_fills_columns(monkeypatch):
             ('[{"act": "Indian Penal Code, 1860", "sections": ["376"]}]',),
         ).fetchone()
         assert hit["n"] == 1
+
+
+def test_lower_case_order_and_rule():
+    got = extract.acts_cited("The application under order vii rule 11 of the Code of Civil Procedure, 1908 fails.")
+    assert got == [{"act": "Code of Civil Procedure, 1908", "sections": ["Order VII Rule 11"]}]
