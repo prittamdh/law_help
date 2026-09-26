@@ -217,12 +217,33 @@ def main(argv: list[str] | None = None) -> None:
     st.add_argument("--limit", type=int)
     st.add_argument("--all", action="store_true", help="redo rows already at the current version")
 
+    up = sub.add_parser("update", help="import only what changed in the dataset since the last "
+                                       "run, then extract text for the new judgments (run daily)")
+    up.add_argument("--year", type=int, action="append", help="repeatable; default all years")
+    up.add_argument("--text-limit", type=int, default=1000,
+                    help="PDFs to fetch for judgments without text afterwards, newest first (0 = skip)")
+    up.add_argument("--stale-days", type=int, default=21,
+                    help="warn when the dataset itself hasn't changed for this many days")
+    up.add_argument("--dry-run", action="store_true", help="only list the partitions that changed")
+
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     if args.command == "metadata":
         n = import_metadata(args.year, args.bench)
         print(f"imported {n} judgments")
+    elif args.command == "update":
+        from .update import run
+
+        s = run(args.year, args.text_limit, args.stale_days, args.dry_run)
+        changed = ", ".join(s["partitions"]) or "none"
+        print(f"checked {s['checked']} partitions, changed: {changed}")
+        if not args.dry_run:
+            print(f"{s['new']} new judgments, {s['updated']} refreshed, text extracted for {s['text']}; "
+                  f"latest decision date {s['latest_decision']}")
+        if s["stale"]:
+            print(f"warning: the dataset was last updated {s['dataset_updated']:%Y-%m-%d}, "
+                  f"over {args.stale_days} days ago", file=sys.stderr)
     elif args.command == "text":
         n = extract_text(args.limit)
         print(f"extracted text for {n} judgments")

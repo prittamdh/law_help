@@ -51,3 +51,13 @@ CREATE INDEX IF NOT EXISTS judgments_acts_cited_idx       ON judgments USING GIN
 CREATE INDEX IF NOT EXISTS judgments_cases_cited_idx      ON judgments USING GIN (cases_cited jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS judgments_neutral_citation_idx ON judgments (neutral_citation);
 CREATE INDEX IF NOT EXISTS judgments_bench_judges_idx     ON judgments USING GIN (bench_judges);
+
+-- What `importer update` has already imported: one row per source file, with its ETag.
+CREATE TABLE IF NOT EXISTS source_partitions (
+    key           TEXT        PRIMARY KEY,           -- object key in the source bucket
+    source        TEXT        NOT NULL,
+    etag          TEXT        NOT NULL,
+    last_modified TIMESTAMPTZ NOT NULL,
+    rows          INTEGER     NOT NULL,
+    imported_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
