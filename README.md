@@ -54,6 +54,12 @@ Accuracy on hand-labelled judgments is in [eval/README.md](eval/README.md).
 
 The act and section filters use the acts each judgment cites (see `importer structure`), so they only find judgments whose text has been extracted. The act box accepts short forms such as `IPC` or `NDPS Act`. The detail page also shows the summary, the neutral citation, advocates, the acts and sections cited (each one links to a search), and the cases cited.
 
+## Keeping it current
+
+`python -m law_help.importer update` is the one command to schedule daily (for example `0 6 * * *` in cron). It asks the bucket for the ETag of every year's metadata file (about 20 seconds), re-imports only the files that changed since the last run, then fetches PDFs and extracts text for up to `--text-limit` (default 1000) judgments that have none yet, newest first. ETags are stored in the `source_partitions` table. Two runs can't overlap, and a run that dies partway just redoes the unfinished file next time. On an empty database the first run imports every year. `--dry-run` lists what changed without importing.
+
+The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan updates on May 11, Jun 1, Jun 21, Jul 12, Jul 30, Aug 25, Sep 8 and Sep 15, so every one to four weeks, and each refresh covers judgments up to about five days earlier. The Jodhpur bench is thin for 2025 and 2026 (under 800 orders a year, against about 20,000 for Jaipur). The command prints a warning when the dataset hasn't changed for `--stale-days` (default 21). Getting same-day judgments would mean querying the HC's own judgment search, which asks for a captcha on every search, so this importer doesn't do that.
+
 ## API
 
 | Endpoint | What it does |
