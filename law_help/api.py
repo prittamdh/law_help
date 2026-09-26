@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 
 from . import db
-from .extract import canonical_act
+from .extract import canonical_act, headline
 from .importer import BUCKET_URL
 
 app = FastAPI(title="law_help", description="Search Rajasthan High Court judgments")
@@ -35,7 +35,7 @@ def judgment_page():
 LIST_COLUMNS = """
     id, bench, cnr, case_type, case_number, case_year, title, petitioner, respondent,
     judges, bench_judges, bench_strength, disposal_nature, decision_date, pdf_key,
-    neutral_citation, summary, ai_summary
+    neutral_citation, summary, ai_summary, outcome, acts_cited
 """
 
 
@@ -51,8 +51,9 @@ def normalize_section(section: str) -> str:
     return re.sub(r"^(\d+)([a-z])(?![a-z])", lambda m: m[1] + m[2].upper(), s)
 
 
-def _with_pdf_url(row: dict) -> dict:
+def _present(row: dict) -> dict:
     row["pdf_url"] = f"{BUCKET_URL}/{row.pop('pdf_key')}"
+    row["headline"] = headline(row["case_type"], row["acts_cited"], row["outcome"], row["disposal_nature"])
     return row
 
 
@@ -117,20 +118,20 @@ def search_judgments(
         params,
     ).fetchall()
     return {"total": total, "page": page, "page_size": page_size,
-            "results": [_with_pdf_url(r) for r in rows]}
+            "results": [_present(r) for r in rows]}
 
 
 @app.get("/judgments/{judgment_id}")
 def get_judgment(judgment_id: int, conn=Depends(get_conn)):
     row = conn.execute(
         f"SELECT {LIST_COLUMNS}, date_of_registration, description, full_text, text_language, "
-        "parties, advocates, acts_cited, cases_cited "
+        "parties, advocates, cases_cited, key_reasoning "
         "FROM judgments WHERE id = %s",
         (judgment_id,),
     ).fetchone()
     if row is None:
         raise HTTPException(404, "judgment not found")
-    return _with_pdf_url(row)
+    return _present(row)
 
 
 @app.get("/stats")
