@@ -30,7 +30,7 @@ import tarfile
 import threading
 import time
 from collections import deque
-from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import CancelledError, Future, ProcessPoolExecutor, ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import PurePosixPath
 
@@ -46,6 +46,8 @@ log = logging.getLogger("law_help.text")
 # A partition with at least this many judgments left streams its archive; fewer are
 # fetched one PDF at a time (about 100 a second, against roughly 200 per archive stream).
 ARCHIVE_MIN_PENDING = 2000
+# A Supreme Court year's archive holds only its few hundred English judgments, so it pays sooner.
+SC_ARCHIVE_MIN_PENDING = 100
 BATCH = 100              # judgments per commit
 DOWNLOADERS = 32         # concurrent single-PDF requests
 PER_STREAM_INFLIGHT = 64 # PDFs read from an archive but not yet written
@@ -103,8 +105,9 @@ class _Inline:
 class Parser:
     """A process pool that survives a worker crash (a segfault in pdfium kills the pool).
 
-    A crashed PDF is retried twice in a fresh pool, then marked as unreadable, so one bad
-    file costs a few retries of whatever else was in flight rather than the whole run.
+    A crash breaks the whole pool, failing every PDF in flight with it. Each of those is then
+    parsed again on its own in a one-off process, so only the PDF that really crashes is
+    marked unreadable, and the shared pool is replaced once rather than once per stream.
     """
 
     def __init__(self, workers: int | None):
@@ -112,36 +115,44 @@ class Parser:
         self._lock = threading.Lock()
         self._pool = self._new()
 
-    def _new(self):
+    def _new(self, workers: int | None = None):
         # forkserver, not fork: the parent has download threads running when the pool starts
         ctx = multiprocessing.get_context("forkserver")
-        return ProcessPoolExecutor(self.workers, mp_context=ctx) if self.workers else _Inline()
+        workers = self.workers if workers is None else workers
+        return ProcessPoolExecutor(workers, mp_context=ctx) if workers else _Inline()
 
     def submit(self, data: bytes, sc: bool = False) -> Future:
-        with self._lock:
-            pool = self._pool
-        try:
-            return pool.submit(parse_pdf, data, sc)
-        except BrokenProcessPool:
-            self._restart(pool)
-            return self.submit(data, sc)
+        for _ in range(3):
+            with self._lock:
+                pool = self._pool
+            try:
+                return pool.submit(parse_pdf, data, sc)
+            except (BrokenProcessPool, RuntimeError):  # RuntimeError: another thread shut it down
+                self._replace_if_broken()
+        return _done(self._alone(data, sc))
 
     def result(self, fut: Future, data: bytes, sc: bool = False) -> dict:
-        for _ in range(3):
-            try:
-                return fut.result()
-            except BrokenProcessPool:
-                with self._lock:
-                    pool = self._pool
-                self._restart(pool)
-                fut = self.submit(data, sc)
-        return {"text": None, "error": "extractor crashed on this PDF", "fields": extract.extract("")}
+        try:
+            return fut.result()
+        except (BrokenProcessPool, CancelledError):
+            self._replace_if_broken()
+            return self._alone(data, sc)
 
-    def _restart(self, broken):
+    def _alone(self, data: bytes, sc: bool) -> dict:
+        """Parse one PDF in a process of its own, so a crash costs only this PDF."""
+        pool = self._new(1)
+        try:
+            return pool.submit(parse_pdf, data, sc).result()
+        except BrokenProcessPool:
+            return {"text": None, "error": "extractor crashed on this PDF", "fields": extract.extract("")}
+        finally:
+            pool.shutdown(wait=True)
+
+    def _replace_if_broken(self):
         with self._lock:
-            if self._pool is broken:
+            if getattr(self._pool, "_broken", False) or getattr(self._pool, "_shutdown_thread", False):
                 log.warning("a parser process died; starting a new pool")
-                broken.shutdown(wait=False, cancel_futures=True)
+                self._pool.shutdown(wait=False, cancel_futures=True)
                 self._pool = self._new()
 
     def shutdown(self):
@@ -432,7 +443,8 @@ def extract_text(limit: int | None = None, years: list[int] | None = None, worke
                      sum(p["pending"] for p in parts), len(parts))
 
             def run(part):
-                use = via == "archive" or (via == "auto" and part["pending"] >= ARCHIVE_MIN_PENDING)
+                least = SC_ARCHIVE_MIN_PENDING if is_supreme(part["source"]) else ARCHIVE_MIN_PENDING
+                use = via == "archive" or (via == "auto" and part["pending"] >= least)
                 try:
                     backfill_partition(client, parser, part, stats, use)
                 except Exception:

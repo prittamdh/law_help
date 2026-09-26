@@ -114,3 +114,16 @@ CREATE TABLE IF NOT EXISTS treatments (
 -- neutral_citation '2024 INSC 735' from the metadata, and the Supreme Court Reports citation here.
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS report_citation TEXT;  -- e.g. '[2024] 10 S.C.R. 108'
 CREATE INDEX IF NOT EXISTS judgments_court_idx ON judgments (court, decision_date DESC);
+
+-- How many different later judgments cite each judgment (law_help.landmark), rebuilt with
+-- `citations`. The most cited are shown as landmarks.
+CREATE TABLE IF NOT EXISTS cited_counts (
+    judgment_id BIGINT  PRIMARY KEY,   -- judgments.id
+    n           INTEGER NOT NULL
+);
+
+-- The fewest citations that make a judgment a landmark, per court (law_help.landmark).
+CREATE TABLE IF NOT EXISTS landmark_thresholds (
+    court TEXT    PRIMARY KEY,
+    n     INTEGER NOT NULL
+);

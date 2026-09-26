@@ -3,6 +3,7 @@
 import io
 import os
 import tarfile
+from concurrent.futures import Future
 
 import httpx
 import pytest
@@ -224,3 +225,27 @@ def test_a_structure_bug_keeps_the_text_and_records_the_error(monkeypatch):
     out = text.parse_pdf(judgment_pdf(8))
     assert "HIGH COURT OF JUDICATURE" in out["text"]
     assert out["error"] == "structure: AttributeError: rule bug"
+
+
+def test_a_broken_pool_reparses_each_pdf_on_its_own():
+    """When a crash breaks the shared pool, the PDFs in flight are parsed again one by one,
+    so they aren't blamed for the crash; the pool is replaced."""
+    from concurrent.futures.process import BrokenProcessPool
+
+    class Broken:
+        _broken = "a worker died"
+
+        def submit(self, *a):
+            raise BrokenProcessPool(self._broken)
+
+        def shutdown(self, **_):
+            pass
+
+    parser = text.Parser(0)
+    parser._pool = Broken()
+    failed = Future()
+    failed.set_exception(BrokenProcessPool("a worker died"))
+    out = parser.result(failed, judgment_pdf(9))
+    assert out["error"] is None and extract.neutral_citation(out["text"]) == "2026:RJ-JP:9"
+    assert not isinstance(parser._pool, Broken)
+    assert parser.result(parser.submit(judgment_pdf(10)), judgment_pdf(10))["error"] is None

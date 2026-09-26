@@ -1,7 +1,7 @@
 // Search page: the URL query string holds the search, so results can be shared and Back works.
 
 const form = document.getElementById("search");
-const FIELDS = ["q", "court", "bench", "decided_from", "decided_to", "judge", "act", "section", "case_type", "disposal"];
+const FIELDS = ["q", "court", "bench", "decided_from", "decided_to", "judge", "act", "section", "case_type", "disposal", "landmark"];
 const PAGE_SIZE = 20;
 
 function stateFromURL() {
@@ -45,6 +45,7 @@ function resultItem(j) {
     j.headline && el("div", { class: "headline" }, j.headline),
     el("div", { class: "meta" },
       goodLawChip(j.good_law),
+      landmarkChip(j),
       el("span", { class: "chip" }, courtLabel(j)),
       j.disposal_nature && el("span", { class: "chip outcome" }, titleCase(j.disposal_nature)),
       j.decision_date ? `Decided ${formatDate(j.decision_date)}` : "Decision date unknown",
@@ -118,6 +119,7 @@ form.addEventListener("submit", (e) => { e.preventDefault(); navigate(stateFromF
 form.elements.court.addEventListener("change", () => navigate(stateFromForm()));
 form.elements.bench.addEventListener("change", () => navigate(stateFromForm()));
 form.elements.disposal.addEventListener("change", () => navigate(stateFromForm()));
+form.elements.landmark.addEventListener("change", () => navigate(stateFromForm()));
 document.getElementById("clear").addEventListener("click", () => {
   navigate({ ...Object.fromEntries(FIELDS.map((f) => [f, ""])), q: form.elements.q.value.trim(), page: 1 });
   fillForm(stateFromURL());

@@ -20,7 +20,7 @@ from pathlib import Path
 import httpx
 import pyarrow.parquet as pq
 
-from . import db, extract, supreme
+from . import db, extract, landmark, supreme
 from .goodlaw import link_treatments
 from .parse import BENCHES, bench_strength, parse_date, parse_judges, parse_title
 
@@ -319,6 +319,8 @@ def link_citations(conn=None) -> int:
         conn.execute("DELETE FROM citations")
         conn.execute(LINK_CASES_SQL)
         conn.execute(LINK_NEUTRAL_SQL)
+        landmark.link_supreme(conn)
+        landmark.count_citations(conn)
     return conn.execute("SELECT count(*) AS n FROM citations").fetchone()["n"]
 
 

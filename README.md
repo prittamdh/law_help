@@ -108,6 +108,20 @@ The judgment page lists "Cited by" (later judgments, with a common order that de
 of connected cases shown once) and the earlier judgments of this court it cites. On 33,000
 judgments from 2025, 15% of English orders cited at least one case of this court.
 
+Supreme Court judgments are linked too (`law_help/landmark.py`), by neutral citation
+(`2024 INSC 735`) or S.C.R. citation, and otherwise by the parties' names and the year of an
+SCC, AIR, JT or SCALE citation, when exactly one Supreme Court judgment fits. Among the Supreme
+Court's own judgments that gives 34,000 links; a sample of 30 name matches was all correct.
+
+### Landmarks
+
+`citations` also fills `cited_counts` (how many different later judgments cite each one) and
+`landmark_thresholds`. A landmark is in the most cited 1% of its court's cited judgments and
+has at least 10 citations. The line is relative because counts grow with the collection: on
+the Supreme Court's own judgments it is 17, which makes 132 landmarks, led by Maneka Gandhi v.
+Union of India (106). Search filters by `landmark=true`, most cited first, and results carry
+`landmark` and `cited_by_count`.
+
 ### Good law check
 
 `python -m law_help.importer goodlaw` flags a judgment when a later judgment of this court

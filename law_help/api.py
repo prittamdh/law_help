@@ -15,6 +15,7 @@ from psycopg.types.json import Jsonb
 from . import db
 from .extract import CASE_KINDS, canonical_act, headline
 from .importer import pdf_url
+from .landmark import landmark_sql
 from .supreme import COURT_NAME as SUPREME_COURT
 
 app = FastAPI(title="law_help", description="Search Supreme Court and Rajasthan High Court judgments")
@@ -46,7 +47,9 @@ LIST_COLUMNS = """
     neutral_citation, summary, ai_summary, outcome, acts_cited,
     (SELECT t.kind FROM treatments t WHERE t.judgment_id = judgments.id
      ORDER BY array_position(ARRAY['set_aside', 'recalled', 'overruled', 'partly_set_aside'], t.kind)
-     LIMIT 1) AS good_law
+     LIMIT 1) AS good_law,
+    coalesce((SELECT n FROM cited_counts WHERE judgment_id = judgments.id), 0) AS cited_by_count,
+    """ + landmark_sql() + """ AS landmark
 """
 
 
@@ -80,6 +83,7 @@ def search_judgments(
     disposal: str | None = Query(None, description="e.g. ALLOWED, DISMISSED"),
     decided_from: date | None = None,
     decided_to: date | None = None,
+    landmark: bool = Query(False, description="only judgments cited by many later ones, most cited first"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     conn=Depends(get_conn),
@@ -119,10 +123,17 @@ def search_judgments(
         where.append("decision_date <= %(decided_to)s")
         params["decided_to"] = decided_to
 
+    if landmark:
+        # cited_counts is small, so narrow to it first
+        where.append("id IN (SELECT judgment_id FROM cited_counts "
+                     "WHERE n >= (SELECT coalesce(min(n), 2147483647) FROM landmark_thresholds))")
+        where.append(landmark_sql())
+
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     order_sql = (
         "ORDER BY ts_rank(search, websearch_to_tsquery('english', %(q)s)) DESC, decision_date DESC"
-        if q else "ORDER BY decision_date DESC NULLS LAST, id DESC"
+        if q else "ORDER BY cited_by_count DESC, decision_date DESC NULLS LAST, id DESC" if landmark
+        else "ORDER BY decision_date DESC NULLS LAST, id DESC"
     )
     params.update(limit=page_size, offset=(page - 1) * page_size)
 

@@ -137,3 +137,4 @@ aside.filters h2.gap { margin-top: 18px; }
 .folder-head h1 { font-size: 20px; margin: 0; }
 ol.results .actions { margin-top: 4px; text-align: right; }
 ol.results .meta .chip { margin-left: 6px; }
+.chip.landmark { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
