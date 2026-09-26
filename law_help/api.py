@@ -131,7 +131,37 @@ def get_judgment(judgment_id: int, conn=Depends(get_conn)):
     ).fetchone()
     if row is None:
         raise HTTPException(404, "judgment not found")
+    row["cited_by"] = conn.execute(CITED_BY_SQL, {"id": judgment_id, "limit": CITED_BY_LIMIT}).fetchall()
+    row["cited_by_total"] = row["cited_by"][0]["total"] if row["cited_by"] else 0
+    row["cites"] = conn.execute(CITES_SQL, (judgment_id,)).fetchall()
     return _present(row)
+
+
+CITED_BY_LIMIT = 200
+LINK_COLUMNS = "a.id, a.title, a.bench, a.case_type, a.case_number, a.case_year, a.decision_date, a.neutral_citation"
+
+# One common order decides a batch of connected cases, each with its own row and the same
+# text: show the order once, with how many connected cases it also decided.
+CITED_BY_SQL = f"""
+SELECT *, count(*) OVER () AS total FROM (
+    SELECT DISTINCT ON (k.order_key) {LINK_COLUMNS},
+           count(*) OVER (PARTITION BY k.order_key) - 1 AS connected
+    FROM citations c
+    JOIN judgments a ON a.id = c.citing_id
+    CROSS JOIN LATERAL (SELECT coalesce(a.neutral_citation, md5(a.full_text), a.id::text) AS order_key) k
+    WHERE c.cited_id = %(id)s
+    ORDER BY k.order_key, a.id
+) orders
+ORDER BY decision_date DESC NULLS LAST, id DESC
+LIMIT %(limit)s
+"""
+
+CITES_SQL = f"""
+SELECT {LINK_COLUMNS}
+FROM citations c JOIN judgments a ON a.id = c.cited_id
+WHERE c.citing_id = %s
+ORDER BY a.decision_date DESC NULLS LAST, a.id DESC
+"""
 
 
 @app.get("/stats")

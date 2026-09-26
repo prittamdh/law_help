@@ -18,7 +18,7 @@ python -m law_help.importer metadata --year 2024            # both benches, one 
 python -m law_help.importer metadata                         # every year (1989 onward)
 python -m law_help.importer text --year 2024                 # fetch PDFs, extract text and structure (~6 min)
 python -m law_help.importer text                             # every judgment still without text
-python -m law_help.importer structure                        # re-derive structure from stored text
+python -m law_help.importer structure                        # re-derive structure and "cited by" links from stored text
 
 uvicorn law_help.api:app --reload     # search UI at http://localhost:8000, API docs at /docs
 ```
@@ -80,6 +80,22 @@ is kept in `full_text_original`.
 The rules are in `law_help/extract.py`. When they change, bump `EXTRACTOR_VERSION` and run
 `structure` to re-derive every row from stored text without downloading anything again.
 Accuracy on hand-labelled judgments is in [eval/README.md](eval/README.md).
+
+### Cited by
+
+Rajasthan HC orders cite the court's own earlier orders by case number, as in
+"Kheta Ram Vs. State (S.B. Civil Writ Petition No.6863/2014) decided on 12.03.2015".
+`structure` keeps those references in `case_refs` (with the party names beside them and the
+seat, when the text names one), and then `importer citations` resolves them to judgments in
+the `citations` table. `structure` and `update` run `citations` at the end, and it rebuilds
+the whole table in a few seconds. A reference goes to the latest judgment in that case decided
+before the citing one. Jaipur and Jodhpur reuse case numbers, so the case's title must contain
+one of the cited party names, and a bare number held by both benches is left unlinked rather
+than guessed. Neutral citations (`2024:RJ-JP:2823`) are linked too.
+
+The judgment page lists "Cited by" (later judgments, with a common order that decided a batch
+of connected cases shown once) and the earlier judgments of this court it cites. On 33,000
+judgments from 2025, 15% of English orders cited at least one case of this court.
 
 ## Search UI
 

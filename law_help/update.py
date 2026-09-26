@@ -15,7 +15,7 @@ import httpx
 import psycopg
 
 from . import db
-from .importer import BUCKET_URL, CACHE_DIR, COURT_CODE, SOURCE, UPSERT_SQL, to_records
+from .importer import BUCKET_URL, CACHE_DIR, COURT_CODE, SOURCE, UPSERT_SQL, link_citations, to_records
 from .text import extract_text
 
 log = logging.getLogger("law_help.update")
@@ -103,6 +103,7 @@ def run(years: list[int] | None, text_limit: int, stale_days: int, dry_run: bool
             conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_ID,))
             conn.commit()
     summary["text"] = extract_text(text_limit)["done"] if text_limit and not dry_run else 0
+    summary["citations"] = link_citations() if not dry_run else 0
     newest = summary["dataset_updated"]
     summary["stale"] = bool(newest and datetime.now(timezone.utc) - newest > timedelta(days=stale_days))
     return summary
