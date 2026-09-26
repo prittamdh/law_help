@@ -33,7 +33,7 @@ function casesList(cases) {
 function judgmentLinks(rows) {
   return el("ul", { class: "plain" }, rows.map((r) => el("li", {},
     el("a", { href: `/judgment?id=${r.id}` }, titleCase(r.title.replace(/^\S+ of /, ""))),
-    el("span", { class: "cites" }, " · ", [caseNumber(r), titleCase(r.bench), formatDate(r.decision_date)]
+    el("span", { class: "cites" }, " · ", [caseNumber(r), courtLabel(r), formatDate(r.decision_date)]
       .filter(Boolean).join(" · ")),
     r.connected ? el("span", { class: "cites" }, ` (and ${r.connected} connected ${r.connected > 1 ? "cases" : "case"})`) : "",
   )));
@@ -101,8 +101,9 @@ async function load() {
     el("a", { class: "pdf", href: j.pdf_url, target: "_blank", rel: "noopener" }, "Open the judgment PDF"),
     el("dl", {},
       field("Case", caseNumber(j)),
-      field("Citation", j.neutral_citation),
-      field("Bench", [titleCase(j.bench), j.bench_strength && ` (${j.bench_strength} bench)`].join("")),
+      field("Citation", [j.neutral_citation, j.report_citation].filter(Boolean).join(" · ")),
+      field(j.court === "Supreme Court of India" ? "Court" : "Bench",
+        [courtLabel(j), j.bench_strength && ` (${j.bench_strength} bench)`].join("")),
       field("Decided", formatDate(j.decision_date)),
       field("Registered", formatDate(j.date_of_registration)),
       field("Outcome", j.outcome || titleCase(j.disposal_nature)),
@@ -117,7 +118,8 @@ async function load() {
     citedBy(j),
     j.cases_cited?.length ? [el("h2", {}, "Cases cited"), casesList(j.cases_cited)] : "",
     j.cites?.length ? [el("h2", {}, "Earlier judgments of this court it cites"), judgmentLinks(j.cites)] : "",
-    j.description && [el("h2", {}, "Opening lines"), el("div", { class: "text" }, j.description)],
+    j.description && [el("h2", {}, j.court === "Supreme Court of India" ? "Headnote" : "Opening lines"),
+      el("div", { class: "text" }, j.description)],
     j.full_text
       ? [el("h2", {}, "Full text"), el("div", { class: "text" }, j.full_text)]
       : el("p", { class: "summary" }, "Full text has not been extracted for this judgment yet. The PDF above has it."),

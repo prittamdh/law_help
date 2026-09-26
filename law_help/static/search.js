@@ -1,7 +1,7 @@
 // Search page: the URL query string holds the search, so results can be shared and Back works.
 
 const form = document.getElementById("search");
-const FIELDS = ["q", "bench", "decided_from", "decided_to", "judge", "act", "section", "case_type", "disposal"];
+const FIELDS = ["q", "court", "bench", "decided_from", "decided_to", "judge", "act", "section", "case_type", "disposal"];
 const PAGE_SIZE = 20;
 
 function stateFromURL() {
@@ -44,7 +44,7 @@ function resultItem(j) {
     el("a", { class: "title", href: `/judgment?id=${j.id}` }, j.title),
     j.headline && el("div", { class: "headline" }, j.headline),
     el("div", { class: "meta" },
-      el("span", { class: "chip" }, titleCase(j.bench)),
+      el("span", { class: "chip" }, courtLabel(j)),
       j.disposal_nature && el("span", { class: "chip outcome" }, titleCase(j.disposal_nature)),
       j.decision_date ? `Decided ${formatDate(j.decision_date)}` : "Decision date unknown",
       judges && ` · ${judges}`,
@@ -96,7 +96,7 @@ async function loadFacets() {
   let stats;
   try { stats = await getJSON("/stats"); } catch (_) { return; }
   document.getElementById("corpus").textContent =
-    `${stats.total.toLocaleString()} Rajasthan High Court judgments` +
+    `${stats.total.toLocaleString()} Supreme Court and Rajasthan High Court judgments` +
     (stats.total ? `, ${stats.with_text.toLocaleString()} with full text` : "");
   document.getElementById("judges").replaceChildren(
     ...stats.top_judges.map((r) => el("option", { value: r.judge })));
@@ -114,6 +114,7 @@ async function loadFacets() {
 }
 
 form.addEventListener("submit", (e) => { e.preventDefault(); navigate(stateFromForm()); });
+form.elements.court.addEventListener("change", () => navigate(stateFromForm()));
 form.elements.bench.addEventListener("change", () => navigate(stateFromForm()));
 form.elements.disposal.addEventListener("change", () => navigate(stateFromForm()));
 document.getElementById("clear").addEventListener("click", () => {

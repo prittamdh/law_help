@@ -39,5 +39,13 @@ function truncate(s, n) {
 }
 
 function caseNumber(j) {
+  // Supreme Court case types are words: "Criminal Appeal No. 1031 of 2015"
+  if (j.case_type?.includes(" ") && j.case_number != null) {
+    return `${titleCase(j.case_type)} No. ${j.case_number} of ${j.case_year}`;
+  }
   return [j.case_type, j.case_number, j.case_year].filter((x) => x != null).join("/");
+}
+
+function courtLabel(j) {
+  return j.court === "Supreme Court of India" ? "Supreme Court" : titleCase(j.bench);
 }

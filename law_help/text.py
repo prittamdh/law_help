@@ -38,7 +38,8 @@ import httpx
 import psycopg
 
 from . import db, extract
-from .importer import BUCKET_URL, COURT_CODE, STRUCTURE_SQL, _structure_params
+from . import supreme
+from .importer import BUCKET_URL, COURT_CODE, STRUCTURE_SQL, _structure_params, bucket_url, is_supreme, pdf_url
 
 log = logging.getLogger("law_help.text")
 
@@ -60,8 +61,10 @@ TEXT_SQL = STRUCTURE_SQL.replace(
 # --------------------------------------------------------------------------- CPU work
 
 
-def parse_pdf(data: bytes) -> dict:
-    """Text, parse error (if any) and structured fields for one PDF. Runs in a worker."""
+def parse_pdf(data: bytes, sc: bool = False) -> dict:
+    """Text, parse error (if any) and structured fields for one PDF. Runs in a worker.
+
+    `sc`: a Supreme Court judgment, whose layout law_help.extract reads differently."""
     text, original, error = None, None, None
     try:
         text = extract.pdf_text(data)
@@ -69,7 +72,7 @@ def parse_pdf(data: bytes) -> dict:
         error = f"{type(exc).__name__}: {exc}"[:300]
     try:
         text, original = extract.readable(text)
-        fields = extract.extract(text or "")
+        fields = extract.extract(text or "", sc)
     except Exception as exc:  # a rule bug must not cost the text, or stop the run
         error = f"structure: {type(exc).__name__}: {exc}"[:300]
         fields = extract.extract("")
@@ -114,16 +117,16 @@ class Parser:
         ctx = multiprocessing.get_context("forkserver")
         return ProcessPoolExecutor(self.workers, mp_context=ctx) if self.workers else _Inline()
 
-    def submit(self, data: bytes) -> Future:
+    def submit(self, data: bytes, sc: bool = False) -> Future:
         with self._lock:
             pool = self._pool
         try:
-            return pool.submit(parse_pdf, data)
+            return pool.submit(parse_pdf, data, sc)
         except BrokenProcessPool:
             self._restart(pool)
-            return self.submit(data)
+            return self.submit(data, sc)
 
-    def result(self, fut: Future, data: bytes) -> dict:
+    def result(self, fut: Future, data: bytes, sc: bool = False) -> dict:
         for _ in range(3):
             try:
                 return fut.result()
@@ -131,7 +134,7 @@ class Parser:
                 with self._lock:
                     pool = self._pool
                 self._restart(pool)
-                fut = self.submit(data)
+                fut = self.submit(data, sc)
         return {"text": None, "error": "extractor crashed on this PDF", "fields": extract.extract("")}
 
     def _restart(self, broken):
@@ -196,11 +199,11 @@ def _get(client: httpx.Client, url: str) -> httpx.Response | None:
 
 def fetch_pdfs(client: httpx.Client, parser: Parser, rows: list[dict], stats: Stats,
                downloaders: int = DOWNLOADERS) -> None:
-    """Download and parse these rows (id, pdf_key) one PDF at a time, many at once."""
+    """Download and parse these rows (id, source, pdf_key) one PDF at a time, many at once."""
 
     def download(row):
         try:
-            r = _get(client, f"{BUCKET_URL}/{row['pdf_key']}")
+            r = _get(client, pdf_url(row["source"], row["pdf_key"]))
         except Exception as exc:
             log.warning("could not download %s: %s", row["pdf_key"], exc)
             return row, None, "failed"
@@ -220,8 +223,9 @@ def fetch_pdfs(client: httpx.Client, parser: Parser, rows: list[dict], stats: St
                     inflight.append((row, None, _done(parsed)))
                 else:
                     stats.add(nbytes=len(data))
-                    inflight.append((row, data, parser.submit(data)))
-            out = [_row(row["id"], parser.result(fut, data)) for row, data, fut in inflight]
+                    inflight.append((row, data, parser.submit(data, is_supreme(row["source"]))))
+            out = [_row(row["id"], parser.result(fut, data, is_supreme(row["source"])))
+                   for row, data, fut in inflight]
             for j in range(0, len(out), BATCH):
                 _write(conn, out[j:j + BATCH], stats)
                 conn.commit()
@@ -255,18 +259,23 @@ class _HTTPStream(io.RawIOBase):
         return n
 
 
-def list_archives(client: httpx.Client, year: int, bench_code: str) -> list[dict]:
-    """The tar files for one partition, data.tar first, then the later parts in order."""
-    prefix = f"data/tar/year={year}/court={COURT_CODE}/bench={bench_code}/"
-    r = client.get(BUCKET_URL, params={"list-type": "2", "prefix": prefix})
+def list_archives(client: httpx.Client, year: int, bench_code: str, source: str | None = None) -> list[dict]:
+    """The tar files for one partition, the main one first, then the later parts in order.
+
+    A High Court partition is a year and bench (data.tar); a Supreme Court one is a year of
+    English judgments (english.tar)."""
+    sc = source is not None and is_supreme(source)
+    prefix = supreme.archive_prefix(year) if sc else f"data/tar/year={year}/court={COURT_CODE}/bench={bench_code}/"
+    bucket = bucket_url(source) if source else BUCKET_URL
+    r = client.get(bucket, params={"list-type": "2", "prefix": prefix})
     r.raise_for_status()
     found = []
     for block in re.findall(r"<Contents>(.*?)</Contents>", r.text, re.S):
         fields = dict(re.findall(r"<(Key|ETag|Size)>([^<]*)</", block))
         if fields.get("Key", "").endswith(".tar"):
             found.append({"key": fields["Key"], "etag": fields["ETag"].replace("&quot;", "").strip('"'),
-                          "size": int(fields["Size"])})
-    return sorted(found, key=lambda a: (not a["key"].endswith("/data.tar"), a["key"]))
+                          "size": int(fields["Size"]), "url": f"{bucket}/{fields['Key']}", "sc": sc})
+    return sorted(found, key=lambda a: (not a["key"].endswith(("/data.tar", "/english.tar")), a["key"]))
 
 
 def stream_archive(client: httpx.Client, parser: Parser, archive: dict, pending: dict[str, int],
@@ -276,7 +285,7 @@ def stream_archive(client: httpx.Client, parser: Parser, archive: dict, pending:
     Found names are removed from `pending`, so whatever is left afterwards is not in this
     archive. Writes and the resume offset are committed together, batch by batch.
     """
-    key, url = archive["key"], f"{BUCKET_URL}/{archive['key']}"
+    key, url, sc = archive["key"], archive["url"], archive.get("sc", False)
     with db.connect() as conn:
         saved = conn.execute("SELECT etag, next_offset, done FROM text_archives WHERE key = %s",
                              (key,)).fetchone()
@@ -304,7 +313,7 @@ def stream_archive(client: httpx.Client, parser: Parser, archive: dict, pending:
         def drain(keep: int):
             while len(inflight) > keep:
                 _, jid, data, fut = inflight.popleft()
-                batch.append(_row(jid, parser.result(fut, data)))
+                batch.append(_row(jid, parser.result(fut, data, sc)))
                 if len(batch) >= BATCH:
                     save(inflight[0][0] if inflight else read_to)
 
@@ -326,7 +335,7 @@ def stream_archive(client: httpx.Client, parser: Parser, archive: dict, pending:
                         start, read_to = base + member.offset, base + tar.offset
                         jid = pending.pop(name)
                         stats.add(nbytes=len(data))
-                        inflight.append((start, jid, data, parser.submit(data)))
+                        inflight.append((start, jid, data, parser.submit(data, sc)))
                         drain(PER_STREAM_INFLIGHT)
                         if not pending:
                             break  # the rest of the archive has nothing we need
@@ -347,19 +356,21 @@ def stream_archive(client: httpx.Client, parser: Parser, archive: dict, pending:
 # --------------------------------------------------------------------------- driver
 
 
-_PARTITION_RE = re.compile(r"^data/pdf/year=(\d+)/court=[^/]+/bench=([^/]+)/")
+# High Court: data/pdf/year=2024/court=8_9/bench=jaipur/; Supreme Court: data/pdf/year=2024/english/
+_PARTITION_RE = re.compile(r"^data/pdf/year=(\d+)/(?:court=[^/]+/bench=([^/]+)|(english))/")
 
 
 def pending_partitions(conn: psycopg.Connection, years: list[int] | None) -> list[dict]:
     rows = conn.execute("""
-        SELECT substring(pdf_key from '^(.*/)[^/]+$') AS prefix, count(*) AS n
-        FROM judgments WHERE text_extracted_at IS NULL GROUP BY 1
+        SELECT source, substring(pdf_key from '^(.*/)[^/]+$') AS prefix, count(*) AS n
+        FROM judgments WHERE text_extracted_at IS NULL GROUP BY 1, 2
     """).fetchall()
     out = []
     for r in rows:
         m = _PARTITION_RE.match(r["prefix"] or "")
         if m and (not years or int(m[1]) in years):
-            out.append({"prefix": r["prefix"], "year": int(m[1]), "bench": m[2], "pending": r["n"]})
+            out.append({"source": r["source"], "prefix": r["prefix"], "year": int(m[1]),
+                        "bench": m[2] or "supreme", "pending": r["n"]})
     return sorted(out, key=lambda p: (-p["year"], p["bench"]))
 
 
@@ -367,11 +378,11 @@ def backfill_partition(client: httpx.Client, parser: Parser, part: dict, stats: 
                        use_archives: bool) -> None:
     with db.connect() as conn:
         rows = conn.execute(
-            "SELECT id, pdf_key FROM judgments WHERE text_extracted_at IS NULL "
-            "AND starts_with(pdf_key, %s)", (part["prefix"],)).fetchall()
+            "SELECT id, source, pdf_key FROM judgments WHERE text_extracted_at IS NULL "
+            "AND source = %s AND starts_with(pdf_key, %s)", (part["source"], part["prefix"])).fetchall()
     if use_archives:
         pending = {PurePosixPath(r["pdf_key"]).name: r["id"] for r in rows}
-        for archive in list_archives(client, part["year"], part["bench"]):
+        for archive in list_archives(client, part["year"], part["bench"], part["source"]):
             if not pending:
                 break
             stream_archive(client, parser, archive, pending, stats)
@@ -403,7 +414,7 @@ def extract_text(limit: int | None = None, years: list[int] | None = None, worke
             parts = pending_partitions(conn, years)
         else:
             latest = conn.execute(
-                "SELECT id, pdf_key FROM judgments WHERE text_extracted_at IS NULL "
+                "SELECT id, source, pdf_key FROM judgments WHERE text_extracted_at IS NULL "
                 + ("AND substring(pdf_key from 'year=(\\d+)')::int = ANY(%(years)s) " if years else "")
                 + "ORDER BY decision_date DESC NULLS LAST, id LIMIT %(limit)s",
                 {"limit": limit, "years": years}).fetchall()

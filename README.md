@@ -1,12 +1,23 @@
 # law_help
 
-Case law in one place, organized and searchable. It starts with the **Rajasthan High Court** (Jaipur and Jodhpur benches).
+Case law in one place, organized and searchable: the **Supreme Court of India** and the **Rajasthan High Court** (Jaipur and Jodhpur benches).
 
 ## Where the data comes from
 
 The Rajasthan HC website ([hcraj.nic.in](https://hcraj.nic.in/hcraj/index.php)) and eCourts need a captcha for every judgment search, which makes scraping them slow and fragile. So the first importer reads the public [Indian High Court Judgments](https://registry.opendata.aws/indian-high-court-judgments/) dataset on AWS instead. It is licensed CC-BY-4.0 and needs no AWS account. The dataset is built from eCourts, is refreshed regularly, and covers Rajasthan (court code `8_9`) from 1989 to date. 2024 alone has about 91,000 judgments and orders.
 
 Each record gives us the case type, number and year, the parties, the judge or judges, the registration and decision dates, the outcome (allowed, dismissed and so on), the opening lines of the judgment, and a link to its PDF.
+
+### Supreme Court
+
+Supreme Court judgments come from the sister dataset, [Indian Supreme Court Judgments](https://registry.opendata.aws/indian-supreme-court-judgments/) (also CC-BY-4.0, no account), built from the Supreme Court's eSCR portal. It has every judgment reported in the Supreme Court Reports from 1950 to date, 43,547 in September 2026, and the English PDFs come to 22.7 GB (there are translations too, which we skip). Each record adds the neutral citation (`2024 INSC 735`), the S.C.R. citation (`[2024] 10 S.C.R. 108`), the full coram and the reporter's headnote, which is stored as the description and searched.
+
+```bash
+python -m law_help.importer supreme       # metadata for every year (~1 minute)
+python -m law_help.importer text          # then the PDFs, like the High Court's
+```
+
+Rows have `court = 'Supreme Court of India'`, `bench = 'supreme court'` and `bench_strength` like `3-judge`. `law_help/supreme.py` reads the metadata and `extract.extract_sc` reads the report layout (parties either side of "v.", "[A and B, JJ.]", "Issue for Consideration", "Result of the Case"). `update` checks both datasets. The search has a court filter (`/judgments?court=supreme` or `court=rajasthan`).
 
 ## Quick start
 
@@ -125,7 +136,8 @@ Until `text` has run, full-text search only sees the title and the opening lines
 
 - `law_help/schema.sql`: the `judgments` table, with a weighted `tsvector` (title > opening lines > full text)
 - `law_help/parse.py`: splits eCourts titles into case type/number/year and parties, and parses bench composition and dates
-- `law_help/importer.py`: the importer commands (metadata, text, structure, update)
+- `law_help/importer.py`: the importer commands (metadata, supreme, text, structure, update)
+- `law_help/supreme.py`: the Supreme Court dataset's layout and metadata
 - `law_help/text.py`: parallel, resumable PDF download and text extraction
 - `law_help/extract.py`: pulls parties, advocates, judges, acts, cited cases and a summary out of judgment text
 - `eval/`: hand-labelled judgments and the script that scores the extractor against them
