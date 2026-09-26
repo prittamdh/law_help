@@ -46,6 +46,18 @@ function caseNumber(j) {
   return [j.case_type, j.case_number, j.case_year].filter((x) => x != null).join("/");
 }
 
+// Good law check (law_help.goodlaw): what a later judgment of this court did to this one.
+const GOOD_LAW = {
+  set_aside: "Set aside on appeal",
+  partly_set_aside: "Partly set aside on appeal",
+  recalled: "Recalled on review",
+  overruled: "Overruled",
+};
+
+function goodLawChip(kind) {
+  return kind ? el("span", { class: `chip bad-law${kind === "partly_set_aside" ? " partly" : ""}` }, GOOD_LAW[kind]) : "";
+}
+
 function courtLabel(j) {
   return j.court === "Supreme Court of India" ? "Supreme Court" : titleCase(j.bench);
 }

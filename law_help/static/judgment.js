@@ -50,6 +50,19 @@ function citedBy(j) {
   ];
 }
 
+// "Set aside on appeal by SAW/253/2024 · 25 Jul 2024", with the later judgment's own words.
+function treatedBy(j) {
+  if (!j.treated_by?.length) return "";
+  return el("section", { class: "bad-law" },
+    j.treated_by.map((t) => el("div", {},
+      el("p", {}, el("strong", {}, GOOD_LAW[t.kind]), " by ",
+        el("a", { href: `/judgment?id=${t.id}` }, [caseNumber(t), formatDate(t.decision_date)].filter(Boolean).join(" · "))),
+      el("blockquote", {}, t.quote),
+    )),
+    el("p", { class: "note" }, "Found automatically in this court's later judgments. Check the later judgment before relying on this one."),
+  );
+}
+
 // The model summary when there is one; otherwise the two sentences copied from the judgment.
 function summaryBlock(j) {
   const ai = j.ai_summary;
@@ -59,6 +72,117 @@ function summaryBlock(j) {
     ai.issues?.length ? [el("h3", {}, "Issues"), el("ul", { class: "plain" }, ai.issues.map((i) => el("li", {}, i)))] : "",
     ai.holding ? [el("h3", {}, "Held"), el("p", {}, ai.holding)] : "",
     el("p", { class: "note" }, "Summary written by AI. Check it against the judgment before relying on it."),
+  );
+}
+
+// "Save" panel: pick folders and write notes; stored in this browser by SavedStore.
+function savePanel(j) {
+  const info = { title: j.title, case: caseNumber(j), bench: j.bench, date: j.decision_date };
+  const box = el("section", { class: "save-panel" });
+
+  function render() {
+    const item = SavedStore.get(j.id);
+    const folders = SavedStore.all().folders;
+    if (!item) {
+      const save = el("button", { type: "button" }, "Save");
+      save.addEventListener("click", () => { SavedStore.put(j.id, info, {}); render(); });
+      box.replaceChildren(save, el("a", { class: "saved-link", href: "/saved" }, "Saved judgments"));
+      return;
+    }
+    const checks = folders.map((f) => {
+      const cb = el("input", { type: "checkbox", checked: item.folders.includes(f) });
+      cb.addEventListener("change", () => {
+        const cur = SavedStore.get(j.id).folders;
+        SavedStore.put(j.id, info, { folders: cb.checked ? [...cur, f] : cur.filter((x) => x !== f) });
+      });
+      return el("label", { class: "folder-check" }, cb, f);
+    });
+    const newFolder = el("input", { placeholder: "New folder, press Enter", "aria-label": "New folder name" });
+    newFolder.addEventListener("keydown", (e) => {
+      const name = newFolder.value.trim();
+      if (e.key !== "Enter" || !name) return;
+      e.preventDefault();
+      SavedStore.put(j.id, info, { folders: [...new Set([...SavedStore.get(j.id).folders, name])] });
+      render();
+    });
+    const note = el("textarea", { rows: 3, placeholder: "Notes on this judgment" });
+    note.value = item.note || "";
+    note.addEventListener("input", () => SavedStore.put(j.id, info, { note: note.value }));
+    const unsave = el("button", { type: "button", class: "link" }, "Remove from saved");
+    unsave.addEventListener("click", () => {
+      if (!item.note || confirm("Remove this judgment and its notes from saved?")) { SavedStore.remove(j.id); render(); }
+    });
+    box.replaceChildren(
+      el("div", { class: "save-head" }, el("strong", {}, "Saved"), el("a", { class: "saved-link", href: "/saved" }, "All saved judgments"), unsave),
+      el("div", { class: "folder-checks" }, checks, newFolder),
+      note,
+    );
+  }
+  render();
+  return box;
+}
+
+// "CRLA-28-1994 Ladu v. State.pdf", safe on Windows.
+function pdfFilename(j) {
+  const name = j.citation.split(/,| \(Raj\.\)/)[0];
+  return `${[caseNumber(j).replace(/\//g, "-"), name].filter(Boolean).join(" ")}`
+    .replace(/[\\/:*?"<>|]+/g, "").slice(0, 120) + ".pdf";
+}
+
+// Saves the PDF straight from the free open dataset (it allows cross-site downloads), so it
+// costs this server no bandwidth. Falls back to opening the PDF if the fetch fails.
+async function downloadPdf(j, button) {
+  button.disabled = true;
+  button.textContent = "Downloading…";
+  try {
+    const res = await fetch(j.pdf_url);
+    if (!res.ok) throw new Error(res.statusText);
+    const url = URL.createObjectURL(await res.blob());
+    el("a", { href: url, download: pdfFilename(j) }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (_) {
+    window.open(j.pdf_url, "_blank", "noopener");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Download PDF";
+  }
+}
+
+async function copyText(text, button, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    // Clipboard API needs https or localhost; the LAN address is plain http.
+    const area = el("textarea", { style: "position:fixed;opacity:0" }, text);
+    document.body.append(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  button.textContent = "Copied";
+  setTimeout(() => { button.textContent = label; }, 1500);
+}
+
+function shareLink(j, button) {
+  const url = `${location.origin}/judgment?id=${j.id}`;
+  if (navigator.share) {
+    navigator.share({ title: j.title, text: j.citation, url }).catch(() => {});
+  } else {
+    copyText(url, button, "Copy share link");
+  }
+}
+
+function actionsBar(j) {
+  const download = el("button", { type: "button" }, "Download PDF");
+  download.addEventListener("click", () => downloadPdf(j, download));
+  const cite = el("button", { type: "button" }, "Copy citation");
+  cite.addEventListener("click", () => copyText(j.citation, cite, "Copy citation"));
+  const share = el("button", { type: "button" }, navigator.share ? "Share" : "Copy share link");
+  share.addEventListener("click", () => shareLink(j, share));
+  return el("section", { class: "cite-box" },
+    el("p", { class: "citation" }, j.citation),
+    el("div", { class: "actions" }, download, cite, share,
+      el("a", { class: "pdf", href: j.pdf_url, target: "_blank", rel: "noopener" }, "Open PDF")),
   );
 }
 
@@ -92,13 +216,15 @@ async function load() {
   content.replaceChildren(el("article", { class: "judgment" },
     el("h1", {}, j.title),
     j.headline && el("p", { class: "headline" }, j.headline),
+    treatedBy(j),
     summaryBlock(j),
     j.key_reasoning && el("section", { class: "key-reasoning" },
       el("h3", {}, "Key passage"),
       el("p", {}, j.key_reasoning),
       el("p", { class: "note" }, "Picked automatically from the judgment's reasoning."),
     ),
-    el("a", { class: "pdf", href: j.pdf_url, target: "_blank", rel: "noopener" }, "Open the judgment PDF"),
+    actionsBar(j),
+    savePanel(j),
     el("dl", {},
       field("Case", caseNumber(j)),
       field("Citation", [j.neutral_citation, j.report_citation].filter(Boolean).join(" · ")),

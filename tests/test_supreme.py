@@ -240,5 +240,8 @@ def test_search_filters_by_court(conn):
     assert hc["results"][0]["pdf_url"].startswith(importer.BUCKET_URL)
     assert client.get("/judgments", params={"q": "acquittal"}).json()["total"] == 2  # SC headnote is searched
     assert client.get("/judgments", params={"court": "delhi"}).status_code == 422
+    assert client.get(f"/judgments/{r['id']}").json()["citation"] == (
+        "Vijay Singh v. The State of Bihar, 2024 INSC 735 : [2024] 10 S.C.R. 108 "
+        "[Criminal Appeal No. 1031 of 2015, decided on 25.09.2024]")
     assert {c["court"] for c in client.get("/stats").json()["by_court"]} == {
         "Supreme Court of India", "Rajasthan High Court"}

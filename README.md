@@ -108,6 +108,30 @@ The judgment page lists "Cited by" (later judgments, with a common order that de
 of connected cases shown once) and the earlier judgments of this court it cites. On 33,000
 judgments from 2025, 15% of English orders cited at least one case of this court.
 
+### Good law check
+
+`python -m law_help.importer goodlaw` flags a judgment when a later judgment of this court
+set it aside, recalled it or overruled it, and keeps the later judgment's own sentence as the
+reason. It is rules only (`law_help/goodlaw.py`), and `structure` and `update` run it after
+`citations`. It fills the `treatments` table:
+
+- **Set aside on appeal**: a Division Bench special appeal (SAW) that says "the order dated
+  05.04.2023 passed by the learned Single Judge is set aside". The order is found by that date
+  at the same seat, and by its case number when the appeal names one. With no number, it must
+  be a Single Judge's writ order whose parties match the appeal's by first name plus a second
+  name or the father's name. When only a paragraph, a direction or costs are set aside, the
+  flag reads "Partly set aside on appeal".
+- **Recalled on review**: a review petition (WRW, CRW, CRLRW) that says the order "stands recalled".
+- **Overruled**: a judgment that says an earlier judgment of this court, cited by case number
+  or neutral citation, "is overruled" or "does not lay down the correct law".
+
+A wrong flag would tell a lawyer to stop relying on good law, so the rules skip what counsel
+argued or asked for ("submitted", "prayed"), anything negated or conditional ("no ground to set
+aside", "if"), appeals the court dismissed, and any case where more than one order fits. On
+2024 and 2025 appeals and reviews, every one of the 33 flags was checked by hand and was right.
+The flag shows on the judgment page and as a red chip in search results. Orders the Supreme
+Court set aside are not flagged yet.
+
 ## Search UI
 
 `uvicorn` also serves a small search page at `/`. It has a keyword box plus filters for bench, decision dates, judge, act, case type and outcome, and each result opens a detail page with the case details, the extracted text and a link to the PDF. The search lives in the URL, so a search can be bookmarked or shared.
@@ -125,10 +149,11 @@ The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan upd
 | Endpoint | What it does |
 | --- | --- |
 | `GET /judgments` | Search and filter: `q` (full text), `judge` (matches the eCourts judges or the judges printed on the PDF), `act` and `section`, `case_type`, `bench`, `disposal`, `decided_from`, `decided_to`, `page`, `page_size` |
-| `GET /judgments/{id}` | One judgment with its description and extracted text |
+| `GET /judgments/{id}` | One judgment with its description and extracted text, `cited_by`, `cites`, and `treated_by` (later judgments that set it aside, recalled or overruled it) |
 | `GET /stats` | Totals by bench, the top judges, acts, case types and outcomes |
 
-Every result carries a `pdf_url` that points at the original judgment PDF.
+Every result carries a `pdf_url` that points at the original judgment PDF, and `good_law`:
+`set_aside`, `partly_set_aside`, `recalled`, `overruled`, or null.
 
 Until `text` has run, full-text search only sees the title and the opening lines of each judgment. So a search like `bail NDPS` finds few matches, because the statute is usually cited deeper in the judgment.
 
@@ -139,6 +164,7 @@ Until `text` has run, full-text search only sees the title and the opening lines
 - `law_help/importer.py`: the importer commands (metadata, supreme, text, structure, update)
 - `law_help/supreme.py`: the Supreme Court dataset's layout and metadata
 - `law_help/text.py`: parallel, resumable PDF download and text extraction
+- `law_help/goodlaw.py`: the good law check (set aside, recalled, overruled)
 - `law_help/extract.py`: pulls parties, advocates, judges, acts, cited cases and a summary out of judgment text
 - `eval/`: hand-labelled judgments and the script that scores the extractor against them
 - `law_help/summarize.py`: model-written summaries (summary, issues, holding, outcome) from local Ollama or the Claude API, stored in `ai_summary`

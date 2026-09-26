@@ -100,6 +100,16 @@ CREATE INDEX IF NOT EXISTS citations_citing_idx ON citations (citing_id);
 -- the text as extracted, so `importer hindi` can re-convert it when the converter improves.
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS full_text_original TEXT;
 
+-- Good law check: a judgment a later judgment of this court set aside, recalled or overruled,
+-- with the later judgment's own words. Rebuilt whole by `importer goodlaw` (law_help.goodlaw).
+CREATE TABLE IF NOT EXISTS treatments (
+    judgment_id BIGINT NOT NULL,   -- judgments.id of the order set aside / overruled
+    by_id       BIGINT NOT NULL,   -- judgments.id of the later judgment
+    kind        TEXT   NOT NULL,   -- 'set_aside' | 'partly_set_aside' | 'recalled' | 'overruled'
+    quote       TEXT   NOT NULL,
+    PRIMARY KEY (judgment_id, by_id)
+);
+
 -- Supreme Court judgments (law_help.supreme): court = 'Supreme Court of India', bench = 'supreme court',
 -- neutral_citation '2024 INSC 735' from the metadata, and the Supreme Court Reports citation here.
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS report_citation TEXT;  -- e.g. '[2024] 10 S.C.R. 108'
