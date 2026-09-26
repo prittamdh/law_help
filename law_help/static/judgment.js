@@ -29,6 +29,18 @@ function casesList(cases) {
   )));
 }
 
+// The model summary when there is one; otherwise the two sentences copied from the judgment.
+function summaryBlock(j) {
+  const ai = j.ai_summary;
+  if (!ai?.summary) return j.summary ? el("p", { class: "summary-text" }, j.summary) : "";
+  return el("section", { class: "ai-summary" },
+    el("p", { class: "summary-text" }, ai.summary),
+    ai.issues?.length ? [el("h3", {}, "Issues"), el("ul", { class: "plain" }, ai.issues.map((i) => el("li", {}, i)))] : "",
+    ai.holding ? [el("h3", {}, "Held"), el("p", {}, ai.holding)] : "",
+    el("p", { class: "note" }, "Summary written by AI. Check it against the judgment before relying on it."),
+  );
+}
+
 async function load() {
   const id = new URLSearchParams(location.search).get("id");
   if (document.referrer && new URL(document.referrer).origin === location.origin) {
@@ -58,7 +70,7 @@ async function load() {
 
   content.replaceChildren(el("article", { class: "judgment" },
     el("h1", {}, j.title),
-    j.summary && el("p", { class: "summary-text" }, j.summary),
+    summaryBlock(j),
     el("a", { class: "pdf", href: j.pdf_url, target: "_blank", rel: "noopener" }, "Open the judgment PDF"),
     el("dl", {},
       field("Case", caseNumber(j)),

@@ -35,7 +35,7 @@ def judgment_page():
 LIST_COLUMNS = """
     id, bench, cnr, case_type, case_number, case_year, title, petitioner, respondent,
     judges, bench_judges, bench_strength, disposal_nature, decision_date, pdf_key,
-    neutral_citation, summary
+    neutral_citation, summary, ai_summary
 """
 
 
