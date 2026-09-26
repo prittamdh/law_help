@@ -210,3 +210,17 @@ def test_parse_pdf_reports_errors_instead_of_raising():
     ok = text.parse_pdf(judgment_pdf(7))
     assert "HIGH COURT OF JUDICATURE" in ok["text"] and ok["error"] is None
     assert extract.neutral_citation(ok["text"]) == "2026:RJ-JP:7"
+
+
+def test_a_structure_bug_keeps_the_text_and_records_the_error(monkeypatch):
+    real = extract.extract
+
+    def broken(text):
+        if text:
+            raise AttributeError("rule bug")
+        return real(text)
+
+    monkeypatch.setattr(extract, "extract", broken)
+    out = text.parse_pdf(judgment_pdf(8))
+    assert "HIGH COURT OF JUDICATURE" in out["text"]
+    assert out["error"] == "structure: AttributeError: rule bug"

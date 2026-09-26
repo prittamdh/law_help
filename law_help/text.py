@@ -66,7 +66,12 @@ def parse_pdf(data: bytes) -> dict:
         text = extract.pdf_text(data)
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"[:300]
-    return {"text": text, "error": error, "fields": extract.extract(text or "")}
+    try:
+        fields = extract.extract(text or "")
+    except Exception as exc:  # a rule bug must not cost the text, or stop the run
+        error = f"structure: {type(exc).__name__}: {exc}"[:300]
+        fields = extract.extract("")
+    return {"text": text, "error": error, "fields": fields}
 
 
 def _row(judgment_id: int, parsed: dict) -> dict:

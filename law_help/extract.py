@@ -390,7 +390,7 @@ def acts_cited(text: str) -> list[dict]:
             continue
         nums = [re.sub(r"[\s-]+", "", n) for n in _NUM_RE.findall(m.group("nums"))]
         if kind.startswith("order"):
-            order = re.search(r"[IVXL\d]+", m.group("kind")[5:]).group()
+            order = re.search(r"[IVXL\d]+", m.group("kind")[5:], re.I).group().upper()
             nums = [f"Order {order} Rule {n}" for n in nums]
         elif kind.startswith("rule"):
             nums = [f"Rule {n}" for n in nums]
