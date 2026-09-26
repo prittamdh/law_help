@@ -83,6 +83,14 @@ async function run(state) {
   summary.textContent = body.total
     ? `${from.toLocaleString()}–${to.toLocaleString()} of ${body.total.toLocaleString()} judgments`
     : "";
+  // IPC 302 also found BNS 103: say so, since those results don't mention the section searched.
+  const eqs = (body.equivalents || []).filter((e) => e.ref);
+  if (eqs.length && body.total) {
+    summary.append(el("span", { class: "equivalents" }, " · including ",
+      eqs.flatMap((e, i) => [i ? ", " : "", el("a", { href: `/acts?${new URLSearchParams({ act: e.act, s: e.number || e.ref })}` },
+        `${e.short} s. ${e.ref}`)]),
+      eqs[0].direction === "new" ? " (new code)" : " (old code)"));
+  }
   list.replaceChildren(...(body.results.length
     ? body.results.map(resultItem)
     : [el("li", { class: "empty" }, "No judgments match. Try fewer words or clear a filter.")]));

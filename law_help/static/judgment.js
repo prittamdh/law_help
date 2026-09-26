@@ -14,11 +14,17 @@ function joined(nodes, sep = ", ") {
   return nodes.flatMap((n, i) => [i ? sep : "", n]);
 }
 
-function actsList(acts) {
+// Sections link to the bare act (its text, and the judgments citing it) when we have that act.
+function actsList(acts, bareActs) {
+  const slugs = Object.fromEntries((bareActs || []).map((a) => [a.act, a.slug]));
   return el("ul", { class: "plain" }, acts.map((a) => el("li", {},
     searchLink({ act: a.act }, a.act),
-    a.sections.length ? [": ", joined(a.sections.map((s) =>
-      searchLink({ act: a.act, section: s }, /^(Order|Rule)\b/.test(s) ? s : `s. ${s}`)))] : "",
+    a.sections.length ? [": ", joined(a.sections.map((s) => {
+      const label = /^(Order|Rule)\b/.test(s) ? s : `s. ${s}`;
+      return slugs[a.act] && !/^Rule\b/.test(s)
+        ? el("a", { href: `/acts?${new URLSearchParams({ act: slugs[a.act], s })}`, title: "Read the section" }, label)
+        : searchLink({ act: a.act, section: s }, label);
+    }))] : "",
   )));
 }
 
@@ -203,6 +209,7 @@ async function load() {
     return;
   }
   document.title = `${j.title} · law_help`;
+  const bareActs = await getJSON("/api/acts").catch(() => []);
 
   // Judges printed on the judgment are more reliable than the eCourts metadata.
   const judges = j.bench_judges?.length ? j.bench_judges : j.judges || [];
@@ -240,7 +247,7 @@ async function load() {
       field("For respondent", (advocates.respondent || []).join(", ")),
       field("CNR", j.cnr),
     ),
-    j.acts_cited?.length ? [el("h2", {}, "Acts and sections cited"), actsList(j.acts_cited)] : "",
+    j.acts_cited?.length ? [el("h2", {}, "Acts and sections cited"), actsList(j.acts_cited, bareActs)] : "",
     citedBy(j),
     j.cases_cited?.length ? [el("h2", {}, "Cases cited"), casesList(j.cases_cited)] : "",
     j.cites?.length ? [el("h2", {}, "Earlier judgments of this court it cites"), judgmentLinks(j.cites)] : "",

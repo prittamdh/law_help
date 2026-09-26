@@ -137,3 +137,20 @@ aside.filters h2.gap { margin-top: 18px; }
 .folder-head h1 { font-size: 20px; margin: 0; }
 ol.results .actions { margin-top: 4px; text-align: right; }
 ol.results .meta .chip { margin-left: 6px; }
+
+/* Bare Acts */
+.acts h1, article.act h1 { font-size: 20px; margin: 0 0 6px; }
+.acts h2 { font-size: 15px; margin: 22px 0 8px; }
+form.finder { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+form.finder select, form.finder input, article.act input[type=search] {
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 15px;
+}
+form.finder input { flex: 1; min-width: 180px; }
+article.act input[type=search] { width: 100%; margin: 4px 0 8px; }
+article.act .crumbs { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+article.act .toc h3 { font-size: 13px; color: var(--muted); margin: 16px 0 4px; }
+article.act .act-text { max-height: none; }
+article.act .equiv { border-left: 3px solid var(--accent-soft); padding: 2px 0 2px 12px; margin: 10px 0; }
+article.act .equiv h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 4px 0; }
+article.act .equiv .note, article.act > p.note { color: var(--muted); font-size: 12px; margin: 4px 0; }
+.summary .equivalents { color: var(--muted); }
