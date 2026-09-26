@@ -42,7 +42,8 @@ def pdf_text(data: bytes) -> str | None:
     except Exception:
         pages = _pypdf_pages(data)
     lines = []
-    for line in "\n".join(pages).replace("\x00", "").splitlines():
+    # pdfium gives some hyphens as \x02 ("appellant\x02complainant"), common in Supreme Court PDFs
+    for line in "\n".join(pages).replace("\x00", "").replace("\x02", "-").splitlines():
         line = re.sub(r"[ \t\xa0\ufffe\uffff]+", " ", line).strip()
         if line and not _WATERMARK_RE.match(line):
             lines.append(line)
@@ -285,7 +286,7 @@ def body(text: str) -> str:
 
 # Short forms seen in Rajasthan HC orders, mapped to one canonical name per act.
 ACT_ALIASES: list[tuple[str, str]] = [
-    (r"I\.?\s?P\.?\s?C\.?|Indian Penal Code(?:,? 1860)?", "Indian Penal Code, 1860"),
+    (r"I\.?\s?P\.?\s?C\.?|(?:Indian )?Penal Code(?:,? 1860)?", "Indian Penal Code, 1860"),
     (r"Cr\.?\s?P\.?\s?C\.?|Code of Criminal Procedure(?:,? 1973)?", "Code of Criminal Procedure, 1973"),
     (r"C\.?\s?P\.?\s?C\.?|Code of Civil Procedure(?:,? 1908)?", "Code of Civil Procedure, 1908"),
     (r"B\.?\s?N\.?\s?S\.?\s?S\.?|Bharatiya Nagarik Suraksha Sanhita(?:,? 2023)?",
@@ -875,7 +876,8 @@ def headline(case_type: str | None, acts: list[dict] | None, outcome_label: str 
     """One line to scan a result by: "Bail application · NDPS Act s. 8, 21 · Bail granted"."""
     parts = []
     if case_type:
-        parts.append(CASE_KINDS.get(case_type.upper(), case_type))
+        # Supreme Court types are already words ("CRIMINAL APPEAL"): just tone down the capitals
+        parts.append(CASE_KINDS.get(case_type.upper(), case_type.capitalize() if " " in case_type else case_type))
     # What the case is about (IPC, NDPS Act), not how it reached court (CrPC s. 439), when both are cited.
     acts = acts or []
     acts = [a for a in acts if not _is_procedural(a["act"])][:2] or acts[:1]
@@ -933,8 +935,10 @@ def hindi_summary(body_text: str, max_chars: int = 600) -> str | None:
 # --------------------------------------------------------------------------- all together
 
 
-def extract(text: str) -> dict:
-    """Every structured field for one judgment's text."""
+def extract(text: str, supreme: bool = False) -> dict:
+    """Every structured field for one judgment's text; `supreme` for a Supreme Court judgment."""
+    if supreme:
+        return extract_sc(text)
     lang = language(text)
     head = header(text)
     citation = neutral_citation(text)
@@ -968,3 +972,162 @@ def extract(text: str) -> dict:
         out["summary"] = hindi_summary(b)
         out["outcome"] = hindi_outcome(b)
     return out
+
+
+# --------------------------------------------------------------------------- Supreme Court Reports
+
+# Supreme Court PDFs are pages of the Supreme Court Reports: "[2024] 10 S.C.R. 108 : 2024 INSC 735",
+# the parties either side of "v.", the case number and date, "[A and B,* JJ.]", the reporter's
+# headnote, then the judgment. Older volumes print the page's A-H margin letters into the text.
+_SCR_RE = re.compile(r"S\.\s?C\.\s?R\.|SUPRE\S{1,3}E COURT REPORTS|\d{4}\s?INSC\s?\d+")
+_SC_V_RE = re.compile(r"^(?:(?P<before>.+?)\s+)?(?:v|vs|versus)\s?\.?$|^[~.]\.?$", re.I)
+_SC_MARGIN_RE = re.compile(r"^[A-Ha-h]$")
+_SC_MARGIN_PREFIX_RE = re.compile(r"^[A-H]\s+(?=[A-Z\[(])")
+_SC_INSC_RE = re.compile(r"\b(\d{4})\s?INSC\s?(\d+)\b")
+_SC_DATE_RE = re.compile(r"^(?:(?P<mon1>[A-Za-z]+)\s+(?P<day1>\d{1,2}),\s*(?P<year1>\d{4})|"
+                         r"(?P<day2>\d{1,2})\s+(?P<mon2>[A-Za-z]+),?\s+(?P<year2>\d{4}))\.?$")
+_MONTHS = {m: i for i, m in enumerate(["january", "february", "march", "april", "may", "june", "july",
+                                       "august", "september", "october", "november", "december"], 1)}
+_SC_CASE_RE = re.compile(r"^\(.*\bNos?\.", re.I)
+_SC_JUDGES_END_RE = re.compile(r"\bJ\s?J\b|\bJ\.\s*[\])J]|[\])]\s*(?:[A-H])?\s*$")
+# Running heads: "[2024] 10 S.C.R. 109", "SWAMI NATH v. NIRMAL SINGH 1003", "S.C.R. SUPREME COURT REPORTS 107"
+_SC_RUNNING_HEAD_RE = re.compile(r"^(?:\[\d{4}\]\s*\d+\s*S\.C\.R\.\s*\d+|.*\bv\.\s.*\s\d{1,4}(?:\s+[A-H])?|"
+                                 r"(?:\d+\s+)?S\.C\.R\.?\s+SUPREME COURT REPORTS(?:\s+\d+)?|H\s+\d{1,4})$")
+_SC_HEADINGS_RE = re.compile(r"^(?:Case Law Cited|List of Acts|List of Keywords|Headnotes†?|Issue for Consideration|"
+                             r"Case Arising From|Appearances for Parties|Judgment / Order of the Supreme Court|"
+                             r"\* Author|†)$", re.I)
+_SC_RESULTS = [(label, re.compile(rx, re.I)) for label, rx in [
+    ("Partly allowed", r"\b(?:partly|partially)\s+allowed|\ballowed\s+(?:in part|partly)"),
+    ("Remanded", r"\bremanded?\b|\bremitted\b"),
+    ("Allowed", r"\ballowed\b"),
+    ("Dismissed", r"\bdismissed\b"),
+    ("Reference answered", r"\breference\s+answered\b|\banswered\b"),
+    ("Disposed of", r"\bdisposed\s+of+\b"),
+]]
+
+
+def _sc_lines(text: str) -> list[str]:
+    out = []
+    for ln in text.splitlines():
+        ln = ln.strip()
+        if ln and not _SC_MARGIN_RE.match(ln):
+            out.append(ln)
+    return out
+
+
+def _sc_judges(line: str) -> list[str]:
+    inner = re.sub(r"^[\[(]", "", line.strip())
+    inner = re.sub(r",?\s*(?:J\s?J|J)\b[^A-Za-z]*(?:[A-H]\s*)?$|[\])J]\s*(?:[A-H]\s*)?$", "", inner.strip())
+    inner = re.sub(r",?\s*C\.\s?J\.?I?\.?(?=,|$)", "", inner)  # "K. N. WANCHOO, C.J., R. S. BACHAWAT"
+    names = re.split(r",|\s+and\s+", inner.replace("*", ""), flags=re.I)
+    return [re.sub(r"\s+", " ", n).strip(" .").upper() for n in names if n.strip(" .")]
+
+
+def sc_header(text: str) -> dict:
+    """Parties, case number, judges and date from a Supreme Court Reports page, and the body after them."""
+    lines = _sc_lines(text)
+    out = {"cases": [], "petitioners": [], "respondents": [], "judges": [], "order_date": None, "body_start": 0}
+    head = [_SC_MARGIN_PREFIX_RE.sub("", ln) for ln in lines[:40]]
+    v = next((i for i, ln in enumerate(head) if _SC_V_RE.match(ln)), None)
+    if v is None:
+        return out
+    before, tail = [], _SC_V_RE.match(head[v])["before"]
+    for ln in head[:v] + ([tail] if tail else []):
+        if _SCR_RE.search(ln) or re.fullmatch(r"\d+", ln):
+            before = []
+            continue
+        before.append(ln)
+    out["petitioners"] = [" ".join(before)] if before else []
+    after, i = [], v + 1
+    while i < len(head):
+        ln = head[i]
+        if _SC_CASE_RE.match(ln):
+            out["cases"].append(ln.strip("()"))
+        elif _SC_DATE_RE.match(ln):
+            m = _SC_DATE_RE.match(ln)
+            mon = _MONTHS.get((m["mon1"] or m["mon2"]).lower())
+            if mon:
+                out["order_date"] = f"{m['year1'] or m['year2']}-{mon:02d}-{int(m['day1'] or m['day2']):02d}"
+        elif ln[:1] in "[(" and not out["judges"]:
+            j = ln
+            while not _SC_JUDGES_END_RE.search(j) and i + 1 < len(head) and i < v + 12:
+                i += 1
+                j += " " + head[i]
+            out["judges"] = _sc_judges(j)
+            out["body_start"] = i + 1
+            break
+        elif not out["cases"] and out["order_date"] is None:
+            after.append(ln)
+        i += 1
+    out["respondents"] = [" ".join(after)] if after else []
+    return out
+
+
+def _sc_body(lines: list[str], head: dict) -> str:
+    """The text without running heads, section headings or lines repeated on every page."""
+    counts: dict[str, int] = {}
+    for ln in lines:
+        counts[ln] = counts.get(ln, 0) + 1
+    own = " v. ".join(side[0] for side in (head["petitioners"], head["respondents"]) if side).lower()
+    keep = [ln for ln in lines if not _SC_RUNNING_HEAD_RE.match(ln) and not _SC_HEADINGS_RE.match(ln)
+            and not (counts[ln] > 2 and " v. " in ln) and ln.lower() != own]
+    return "\n".join(keep)
+
+
+def _sc_between(text: str, start: str, end: str) -> str | None:
+    m = re.search(rf"(?m)^{start}\s*$(.*?)^{end}", text, re.S)
+    return re.sub(r"\s+", " ", m.group(1)).strip() if m else None
+
+
+def sc_outcome(text: str) -> str | None:
+    """From "Result of the Case: Appeals disposed of." or, in older reports, the closing line."""
+    m = re.search(r"Result of the Case\s*:\s*(.+)", text)
+    tail = m.group(1) if m else re.sub(r"\s+", " ", text[-400:])
+    for label, rx in _SC_RESULTS:
+        if rx.search(tail):
+            return label
+    return None
+
+
+def _is_own_case(cited: dict, head: dict) -> bool:
+    """Older volumes print the case's own name in the margin; that is not a citation."""
+    if cited["citations"] or not cited["name"] or not head["petitioners"] or not head["respondents"]:
+        return False
+    name = cited["name"].lower()
+    return all(max(re.findall(r"[a-z]+", side[0].lower()) or [""], key=len) in name
+               for side in (head["petitioners"], head["respondents"]))
+
+
+def extract_sc(text: str) -> dict:
+    """extract() for a Supreme Court judgment: same keys, read from the report's layout."""
+    lines = _sc_lines(text)
+    head = sc_header(text)
+    b = _sc_body(lines[head["body_start"]:], head)
+    insc = _SC_INSC_RE.search(text[:400])
+    issue = _sc_between(text, "Issue for Consideration", "Headnotes")
+    result = re.search(r"Result of the Case\s*:\s*(.+)", text)
+    if issue:
+        parts = [issue if len(issue) <= 450 else issue[:449].rsplit(" ", 1)[0] + "…"]
+        if result:
+            parts.append(result.group(1).strip().rstrip(".") + ".")
+        brief = " ".join(parts)
+    else:
+        brief = summary(b)
+    return {
+        "extractor_version": EXTRACTOR_VERSION,
+        "language": language(text),
+        "neutral_citation": f"{insc[1]} INSC {insc[2]}" if insc else None,
+        "cases": head["cases"],
+        "petitioners": head["petitioners"],
+        "respondents": head["respondents"],
+        "advocates": {"petitioner": [], "respondent": []},
+        "judges": head["judges"],
+        "order_date": head["order_date"],
+        # "s. 120-B of the Penal Code" can leave a stray "B of the Penal Code" act behind
+        "acts_cited": [a for a in acts_cited(b) if not re.match(r"[A-Z] of ", a["act"])],
+        "cases_cited": [c for c in cases_cited(b) if not _is_own_case(c, head)],
+        "case_refs": [],  # these point at Rajasthan HC case numbers, which an SC judgment doesn't use
+        "summary": brief,
+        "outcome": sc_outcome(text) or outcome(b),
+        "key_reasoning": key_reasoning(b),
+    }

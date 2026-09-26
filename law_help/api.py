@@ -15,9 +15,12 @@ from psycopg.types.json import Jsonb
 from . import bareacts, db
 from .acts_api import router as acts_router
 from .extract import CASE_KINDS, canonical_act, headline
-from .importer import BUCKET_URL
+from .importer import pdf_url
+from .supreme import COURT_NAME as SUPREME_COURT
 
-app = FastAPI(title="law_help", description="Search Rajasthan High Court judgments")
+app = FastAPI(title="law_help", description="Search Supreme Court and Rajasthan High Court judgments")
+
+COURTS = {"supreme": SUPREME_COURT, "rajasthan": "Rajasthan High Court"}
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -40,9 +43,12 @@ def saved_page():
 
 
 LIST_COLUMNS = """
-    id, bench, cnr, case_type, case_number, case_year, title, petitioner, respondent,
+    id, source, court, report_citation, bench, cnr, case_type, case_number, case_year, title, petitioner, respondent,
     judges, bench_judges, bench_strength, disposal_nature, decision_date, pdf_key,
-    neutral_citation, summary, ai_summary, outcome, acts_cited
+    neutral_citation, summary, ai_summary, outcome, acts_cited,
+    (SELECT t.kind FROM treatments t WHERE t.judgment_id = judgments.id
+     ORDER BY array_position(ARRAY['set_aside', 'recalled', 'overruled', 'partly_set_aside'], t.kind)
+     LIMIT 1) AS good_law
 """
 
 
@@ -63,7 +69,7 @@ def normalize_section(section: str) -> str:
 
 
 def _present(row: dict) -> dict:
-    row["pdf_url"] = f"{BUCKET_URL}/{row.pop('pdf_key')}"
+    row["pdf_url"] = pdf_url(row.pop("source"), row.pop("pdf_key"))
     row["headline"] = headline(row["case_type"], row["acts_cited"], row["outcome"], row["disposal_nature"])
     return row
 
@@ -77,6 +83,7 @@ def search_judgments(
     equivalent: bool = Query(True, description="also match the same section in the old or new code "
                              "(IPC 302 also finds BNS 103)"),
     case_type: str | None = Query(None, description="e.g. CW, CRLMB"),
+    court: str | None = Query(None, pattern="^(supreme|rajasthan)$", description="supreme or rajasthan (HC)"),
     bench: str | None = Query(None, pattern="^(jaipur|jodhpur)$"),
     disposal: str | None = Query(None, description="e.g. ALLOWED, DISMISSED"),
     decided_from: date | None = None,
@@ -107,6 +114,9 @@ def search_judgments(
     if case_type:
         where.append("case_type = %(case_type)s")
         params["case_type"] = case_type.upper()
+    if court:
+        where.append("court = %(court)s")
+        params["court"] = COURTS[court]
     if bench:
         where.append("bench = %(bench)s")
         params["bench"] = bench
@@ -150,6 +160,7 @@ def get_judgment(judgment_id: int, conn=Depends(get_conn)):
     row["cited_by"] = conn.execute(CITED_BY_SQL, {"id": judgment_id, "limit": CITED_BY_LIMIT}).fetchall()
     row["cited_by_total"] = row["cited_by"][0]["total"] if row["cited_by"] else 0
     row["cites"] = conn.execute(CITES_SQL, (judgment_id,)).fetchall()
+    row["treated_by"] = conn.execute(TREATED_BY_SQL, (judgment_id,)).fetchall()
     row["citation"] = citation_line(row)
     return _present(row)
 
@@ -178,6 +189,17 @@ def citation_line(j: dict) -> str:
         name = f"{pet} v. {res}"
     else:
         name = re.sub(r"\s+Vs\.?\s+", " v. ", re.sub(r"^\S+ of ", "", j.get("title") or ""), flags=re.I)
+    if j.get("court") == SUPREME_COURT:
+        # "Vijay Singh v. The State of Bihar, 2024 INSC 735 : [2024] 10 S.C.R. 108 [Criminal Appeal
+        # No. 1031 of 2015, decided on 25.09.2024]"
+        cites = " : ".join(c for c in (j.get("neutral_citation"), j.get("report_citation")) if c)
+        details = []
+        if j.get("case_type") and j.get("case_number") is not None:
+            details.append(f"{j['case_type'].title()} No. {j['case_number']} of {j['case_year']}")
+        if j.get("decision_date"):
+            details.append(f"decided on {j['decision_date']:%d.%m.%Y}")
+        head = f"{name}, {cites}" if cites else name
+        return f"{head} [{', '.join(details)}]" if details else head
     head = f"{name}, {j['neutral_citation']} (Raj.)" if j.get("neutral_citation") else f"{name} (Raj.)"
     details = []
     if j.get("case_type") and j.get("case_number") is not None:
@@ -192,7 +214,7 @@ def citation_line(j: dict) -> str:
 
 
 CITED_BY_LIMIT = 200
-LINK_COLUMNS = "a.id, a.title, a.bench, a.case_type, a.case_number, a.case_year, a.decision_date, a.neutral_citation"
+LINK_COLUMNS = "a.id, a.title, a.court, a.bench, a.case_type, a.case_number, a.case_year, a.decision_date, a.neutral_citation"
 
 # One common order decides a batch of connected cases, each with its own row and the same
 # text: show the order once, with how many connected cases it also decided.
@@ -217,6 +239,14 @@ WHERE c.citing_id = %s
 ORDER BY a.decision_date DESC NULLS LAST, a.id DESC
 """
 
+# Later judgments that set this one aside, recalled or overruled it (law_help.goodlaw).
+TREATED_BY_SQL = f"""
+SELECT {LINK_COLUMNS}, t.kind, t.quote
+FROM treatments t JOIN judgments a ON a.id = t.by_id
+WHERE t.judgment_id = %s
+ORDER BY a.decision_date DESC NULLS LAST, a.id DESC
+"""
+
 
 @app.get("/stats")
 def stats(conn=Depends(get_conn)):
@@ -225,6 +255,8 @@ def stats(conn=Depends(get_conn)):
         "total": conn.execute("SELECT count(*) AS n FROM judgments").fetchone()["n"],
         "with_text": conn.execute(
             "SELECT count(*) AS n FROM judgments WHERE full_text IS NOT NULL").fetchone()["n"],
+        "by_court": conn.execute(
+            "SELECT court, count(*) AS n FROM judgments GROUP BY 1 ORDER BY 2 DESC").fetchall(),
         "by_bench": conn.execute(
             "SELECT bench, count(*) AS n FROM judgments GROUP BY 1 ORDER BY 2 DESC").fetchall(),
         "top_judges": conn.execute(

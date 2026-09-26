@@ -62,7 +62,7 @@ def get_section(slug: str, number: str, conn=Depends(get_conn),
     params = {f"f{i}": Jsonb([{"act": act["act"], "sections": [f]}]) for i, f in enumerate(forms)}
     total = conn.execute(f"SELECT count(*) AS n FROM judgments WHERE {where}", params).fetchone()["n"]
     rows = conn.execute(
-        f"SELECT id, title, bench, case_type, case_number, case_year, decision_date, neutral_citation, pdf_key "
+        f"SELECT id, title, court, bench, case_type, case_number, case_year, decision_date, neutral_citation, pdf_key "
         f"FROM judgments WHERE {where} ORDER BY decision_date DESC NULLS LAST, id DESC LIMIT %(limit)s",
         {**params, "limit": limit}).fetchall()
     for r in rows:

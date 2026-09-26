@@ -1,5 +1,7 @@
 """Import Rajasthan High Court judgments from the public AWS open-data bucket.
 
+Supreme Court judgments come from a sibling bucket; law_help.supreme reads that one.
+
 Dataset: https://registry.opendata.aws/indian-high-court-judgments/ (CC-BY-4.0).
 Layout per year and bench:
     metadata/parquet/year=YYYY/court=8_9/bench=<bench>/metadata.parquet
@@ -18,7 +20,8 @@ from pathlib import Path
 import httpx
 import pyarrow.parquet as pq
 
-from . import db, extract
+from . import db, extract, supreme
+from .goodlaw import link_treatments
 from .parse import BENCHES, bench_strength, parse_date, parse_judges, parse_title
 
 BUCKET_URL = "https://indian-high-court-judgments.s3.ap-south-1.amazonaws.com"
@@ -28,6 +31,19 @@ SOURCE = "aws-hc-judgments"
 CACHE_DIR = Path(".cache")
 
 log = logging.getLogger("law_help.importer")
+
+
+def bucket_url(source: str) -> str:
+    """Where a row's pdf_key lives."""
+    return supreme.BUCKET_URL if source == supreme.SOURCE else BUCKET_URL
+
+
+def pdf_url(source: str, pdf_key: str) -> str:
+    return f"{bucket_url(source)}/{pdf_key}"
+
+
+def is_supreme(source: str) -> bool:
+    return source == supreme.SOURCE
 
 UPSERT_SQL = """
 INSERT INTO judgments (
@@ -122,9 +138,55 @@ def import_metadata(years: list[int] | None, benches: list[str] | None) -> int:
     return total
 
 
+# The Supreme Court's metadata also carries its neutral citation ("2024 INSC 735") and the
+# Supreme Court Reports citation, which older judgments don't print.
+SC_UPSERT_SQL = UPSERT_SQL.replace(
+    "description\n) VALUES", "description, neutral_citation, report_citation\n) VALUES"
+).replace(
+    "%(description)s\n)", "%(description)s, %(neutral_citation)s, %(report_citation)s\n)"
+).replace(
+    "imported_at = now()",
+    "neutral_citation = EXCLUDED.neutral_citation, report_citation = EXCLUDED.report_citation, imported_at = now()",
+)
+
+
+def fetch_sc_metadata(client: httpx.Client, year: int) -> bytes | None:
+    key = supreme.metadata_key(year)
+    cached = CACHE_DIR / "supreme" / key
+    if cached.exists():
+        return cached.read_bytes()
+    r = client.get(f"{supreme.BUCKET_URL}/{key}")
+    if r.status_code in (403, 404):
+        return None
+    r.raise_for_status()
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    cached.write_bytes(r.content)
+    return r.content
+
+
+def import_supreme(years: list[int] | None) -> int:
+    """Supreme Court judgment metadata, every year by default (43,500 rows, about 1 minute)."""
+    total = 0
+    with httpx.Client(timeout=120) as client, db.connect() as conn:
+        db.init_schema(conn)
+        for year in years or range(supreme.FIRST_YEAR, datetime.now().year + 1):
+            data = fetch_sc_metadata(client, year)
+            if data is None:
+                continue
+            records = supreme.to_records(data, year)
+            with conn.cursor() as cur:
+                cur.executemany(SC_UPSERT_SQL, records)
+            conn.commit()
+            total += len(records)
+            log.info("imported %d Supreme Court judgments for %d", len(records), year)
+    return total
+
+
 STRUCTURE_SQL = """
 UPDATE judgments SET
-    text_language = %(language)s, neutral_citation = %(neutral_citation)s,
+    text_language = %(language)s,
+    -- a Supreme Court row keeps the citation from its metadata; old reports don't print one
+    neutral_citation = CASE WHEN source = 'aws-sc-judgments' THEN neutral_citation ELSE %(neutral_citation)s END,
     parties = %(parties)s, advocates = %(advocates)s, bench_judges = %(judges)s,
     acts_cited = %(acts_cited)s, cases_cited = %(cases_cited)s, case_refs = %(case_refs)s,
     summary = %(summary)s,
@@ -134,10 +196,11 @@ WHERE id = %(id)s
 """
 
 
-def _structure_params(judgment_id: int, text: str | None, fields: dict | None = None) -> dict:
+def _structure_params(judgment_id: int, text: str | None, fields: dict | None = None,
+                      sc: bool = False) -> dict:
     from psycopg.types.json import Jsonb
 
-    fields = fields or extract.extract(text or "")
+    fields = fields or extract.extract(text or "", sc)
     return {
         "id": judgment_id,
         "language": fields["language"],
@@ -155,8 +218,8 @@ def _structure_params(judgment_id: int, text: str | None, fields: dict | None = 
     }
 
 
-def _extract_many(texts: list[str | None]) -> list[dict]:
-    return [extract.extract(t or "") for t in texts]
+def _extract_many(items: list[tuple[str | None, bool]]) -> list[dict]:
+    return [extract.extract(t or "", sc) for t, sc in items]
 
 
 def structure(limit: int | None, redo: bool, workers: int | None = None) -> int:
@@ -176,14 +239,14 @@ def structure(limit: int | None, redo: bool, workers: int | None = None) -> int:
             where += " AND (extractor_version IS NULL OR extractor_version < %(v)s)"
         # A named cursor streams rows instead of loading every text into memory.
         cur = reader.cursor(name="structure")
-        cur.execute(f"SELECT id, full_text FROM judgments WHERE {where} ORDER BY id "
+        cur.execute(f"SELECT id, source, full_text FROM judgments WHERE {where} ORDER BY id "
                     + ("LIMIT %(limit)s" if limit else ""),
                     {"v": extract.EXTRACTOR_VERSION, "limit": limit})
         pool = ProcessPoolExecutor(workers, mp_context=multiprocessing.get_context("forkserver")) \
             if workers > 1 else None
         try:
             while rows := cur.fetchmany(workers * 50):
-                texts = [r["full_text"] for r in rows]
+                texts = [(r["full_text"], is_supreme(r["source"])) for r in rows]
                 chunks = [texts[i:i + 50] for i in range(0, len(texts), 50)]
                 results = [f for c in (pool.map(_extract_many, chunks) if pool else map(_extract_many, chunks))
                            for f in c]
@@ -325,6 +388,10 @@ def main(argv: list[str] | None = None) -> None:
     meta.add_argument("--bench", choices=sorted(set(BENCHES.values())), action="append",
                       help="repeatable; default both benches")
 
+    sc = sub.add_parser("supreme", help="import Supreme Court judgment metadata (then run `text` for "
+                                         "the judgments themselves)")
+    sc.add_argument("--year", type=int, action="append", help="repeatable; default all years")
+
     text = sub.add_parser("text", help="download PDFs, extract full text and structure; "
                                        "resumable, so just run it again after a stop")
     text.add_argument("--limit", type=int,
@@ -346,6 +413,8 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("citations", help="link each judgment to the earlier judgments of this court it "
                                      "cites (\"cited by\"); `structure` and `update` run it too")
+    sub.add_parser("goodlaw", help="flag judgments a later judgment set aside, recalled or overruled "
+                                   "(run after `citations`); `structure` and `update` run it too")
 
     hi = sub.add_parser("hindi", help="convert Hindi orders typed in the old Kruti Dev font to "
                                       "readable, searchable Hindi (no downloads; safe to re-run)")
@@ -366,6 +435,9 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "metadata":
         n = import_metadata(args.year, args.bench)
         print(f"imported {n} judgments")
+    elif args.command == "supreme":
+        n = import_supreme(args.year)
+        print(f"imported {n} Supreme Court judgments")
     elif args.command == "update":
         from .update import run
 
@@ -374,13 +446,15 @@ def main(argv: list[str] | None = None) -> None:
         print(f"checked {s['checked']} partitions, changed: {changed}")
         if not args.dry_run:
             print(f"{s['new']} new judgments, {s['updated']} refreshed, text extracted for {s['text']}, "
-                  f"{s['citations']} citations linked; "
-                  f"latest decision date {s['latest_decision']}")
+                  f"{s['citations']} citations linked, {s['treatments']} judgments flagged as set aside or overruled; "
+                  f"latest decision date {s['latest_decision']} (Supreme Court: {s['sc_latest_decision']})")
         if s["stale"]:
             print(f"warning: the dataset was last updated {s['dataset_updated']:%Y-%m-%d}, "
                   f"over {args.stale_days} days ago", file=sys.stderr)
     elif args.command == "citations":
         print(f"linked {link_citations()} citations")
+    elif args.command == "goodlaw":
+        print(f"flagged {link_treatments()} judgments set aside, recalled or overruled")
     elif args.command == "text":
         from .text import extract_text
 
@@ -392,7 +466,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"converted {n} Hindi judgments")
     else:
         n = structure(args.limit, args.all, args.workers)
-        print(f"structured {n} judgments; linked {link_citations()} citations")
+        print(f"structured {n} judgments; linked {link_citations()} citations; "
+              f"flagged {link_treatments()} judgments set aside, recalled or overruled")
 
 
 if __name__ == "__main__":

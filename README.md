@@ -1,12 +1,23 @@
 # law_help
 
-Case law in one place, organized and searchable. It starts with the **Rajasthan High Court** (Jaipur and Jodhpur benches).
+Case law in one place, organized and searchable: the **Supreme Court of India** and the **Rajasthan High Court** (Jaipur and Jodhpur benches).
 
 ## Where the data comes from
 
 The Rajasthan HC website ([hcraj.nic.in](https://hcraj.nic.in/hcraj/index.php)) and eCourts need a captcha for every judgment search, which makes scraping them slow and fragile. So the first importer reads the public [Indian High Court Judgments](https://registry.opendata.aws/indian-high-court-judgments/) dataset on AWS instead. It is licensed CC-BY-4.0 and needs no AWS account. The dataset is built from eCourts, is refreshed regularly, and covers Rajasthan (court code `8_9`) from 1989 to date. 2024 alone has about 91,000 judgments and orders.
 
 Each record gives us the case type, number and year, the parties, the judge or judges, the registration and decision dates, the outcome (allowed, dismissed and so on), the opening lines of the judgment, and a link to its PDF.
+
+### Supreme Court
+
+Supreme Court judgments come from the sister dataset, [Indian Supreme Court Judgments](https://registry.opendata.aws/indian-supreme-court-judgments/) (also CC-BY-4.0, no account), built from the Supreme Court's eSCR portal. It has every judgment reported in the Supreme Court Reports from 1950 to date, 43,547 in September 2026, and the English PDFs come to 22.7 GB (there are translations too, which we skip). Each record adds the neutral citation (`2024 INSC 735`), the S.C.R. citation (`[2024] 10 S.C.R. 108`), the full coram and the reporter's headnote, which is stored as the description and searched.
+
+```bash
+python -m law_help.importer supreme       # metadata for every year (~1 minute)
+python -m law_help.importer text          # then the PDFs, like the High Court's
+```
+
+Rows have `court = 'Supreme Court of India'`, `bench = 'supreme court'` and `bench_strength` like `3-judge`. `law_help/supreme.py` reads the metadata and `extract.extract_sc` reads the report layout (parties either side of "v.", "[A and B, JJ.]", "Issue for Consideration", "Result of the Case"). `update` checks both datasets. The search has a court filter (`/judgments?court=supreme` or `court=rajasthan`).
 
 ## Quick start
 
@@ -97,6 +108,30 @@ The judgment page lists "Cited by" (later judgments, with a common order that de
 of connected cases shown once) and the earlier judgments of this court it cites. On 33,000
 judgments from 2025, 15% of English orders cited at least one case of this court.
 
+### Good law check
+
+`python -m law_help.importer goodlaw` flags a judgment when a later judgment of this court
+set it aside, recalled it or overruled it, and keeps the later judgment's own sentence as the
+reason. It is rules only (`law_help/goodlaw.py`), and `structure` and `update` run it after
+`citations`. It fills the `treatments` table:
+
+- **Set aside on appeal**: a Division Bench special appeal (SAW) that says "the order dated
+  05.04.2023 passed by the learned Single Judge is set aside". The order is found by that date
+  at the same seat, and by its case number when the appeal names one. With no number, it must
+  be a Single Judge's writ order whose parties match the appeal's by first name plus a second
+  name or the father's name. When only a paragraph, a direction or costs are set aside, the
+  flag reads "Partly set aside on appeal".
+- **Recalled on review**: a review petition (WRW, CRW, CRLRW) that says the order "stands recalled".
+- **Overruled**: a judgment that says an earlier judgment of this court, cited by case number
+  or neutral citation, "is overruled" or "does not lay down the correct law".
+
+A wrong flag would tell a lawyer to stop relying on good law, so the rules skip what counsel
+argued or asked for ("submitted", "prayed"), anything negated or conditional ("no ground to set
+aside", "if"), appeals the court dismissed, and any case where more than one order fits. On
+2024 and 2025 appeals and reviews, every one of the 33 flags was checked by hand and was right.
+The flag shows on the judgment page and as a red chip in search results. Orders the Supreme
+Court set aside are not flagged yet.
+
 ## Search UI
 
 `uvicorn` also serves a small search page at `/`. It has a keyword box plus filters for bench, decision dates, judge, act, case type and outcome, and each result opens a detail page with the case details, the extracted text and a link to the PDF. The search lives in the URL, so a search can be bookmarked or shared.
@@ -128,13 +163,14 @@ The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan upd
 | Endpoint | What it does |
 | --- | --- |
 | `GET /judgments` | Search and filter: `q` (full text), `judge` (matches the eCourts judges or the judges printed on the PDF), `act` and `section`, `case_type`, `bench`, `disposal`, `decided_from`, `decided_to`, `page`, `page_size` |
-| `GET /judgments/{id}` | One judgment with its description and extracted text |
+| `GET /judgments/{id}` | One judgment with its description and extracted text, `cited_by`, `cites`, and `treated_by` (later judgments that set it aside, recalled or overruled it) |
 | `GET /stats` | Totals by bench, the top judges, acts, case types and outcomes |
 | `GET /api/acts` | The bare acts, with section counts and which code replaced which |
 | `GET /api/acts/{act}` | An act's sections and chapters (`ipc`, `bns`, `crpc`, `bnss`, `evidence`, `bsa`, `cpc`, `constitution`, ...) |
 | `GET /api/acts/{act}/sections/{number}` | A section's text, its old or new counterpart, and the latest judgments citing it |
 
-Every result carries a `pdf_url` that points at the original judgment PDF.
+Every result carries a `pdf_url` that points at the original judgment PDF, and `good_law`:
+`set_aside`, `partly_set_aside`, `recalled`, `overruled`, or null.
 
 Until `text` has run, full-text search only sees the title and the opening lines of each judgment. So a search like `bail NDPS` finds few matches, because the statute is usually cited deeper in the judgment.
 
@@ -142,8 +178,10 @@ Until `text` has run, full-text search only sees the title and the opening lines
 
 - `law_help/schema.sql`: the `judgments` table, with a weighted `tsvector` (title > opening lines > full text)
 - `law_help/parse.py`: splits eCourts titles into case type/number/year and parties, and parses bench composition and dates
-- `law_help/importer.py`: the importer commands (metadata, text, structure, update)
+- `law_help/importer.py`: the importer commands (metadata, supreme, text, structure, update)
+- `law_help/supreme.py`: the Supreme Court dataset's layout and metadata
 - `law_help/text.py`: parallel, resumable PDF download and text extraction
+- `law_help/goodlaw.py`: the good law check (set aside, recalled, overruled)
 - `law_help/extract.py`: pulls parties, advocates, judges, acts, cited cases and a summary out of judgment text
 - `eval/`: hand-labelled judgments and the script that scores the extractor against them
 - `law_help/summarize.py`: model-written summaries (summary, issues, holding, outcome) from local Ollama or the Claude API, stored in `ai_summary`

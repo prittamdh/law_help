@@ -114,7 +114,7 @@ function citingList(sec) {
     el("h2", {}, `Cited in ${c.total.toLocaleString()} ${c.total > 1 ? "judgments" : "judgment"}`),
     el("ul", { class: "plain" }, c.results.map((r) => el("li", {},
       el("a", { href: `/judgment?id=${r.id}` }, titleCase(r.title.replace(/^\S+ of /, ""))),
-      el("span", { class: "cites" }, " · ", [caseNumber(r), titleCase(r.bench), formatDate(r.decision_date)].filter(Boolean).join(" · "))))),
+      el("span", { class: "cites" }, " · ", [caseNumber(r), courtLabel(r), formatDate(r.decision_date)].filter(Boolean).join(" · "))))),
     el("p", {}, el("a", { href: searchHref },
       c.total > c.results.length ? `See all ${c.total.toLocaleString()}${withOther ? `, and those citing${withOther}` : ""}`
         : `Search these judgments${withOther ? ` and those citing${withOther}` : ""}`)),
