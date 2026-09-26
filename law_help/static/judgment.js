@@ -109,6 +109,70 @@ function savePanel(j) {
   return box;
 }
 
+// "CRLA-28-1994 Ladu v. State.pdf", safe on Windows.
+function pdfFilename(j) {
+  const name = j.citation.split(/,| \(Raj\.\)/)[0];
+  return `${[caseNumber(j).replace(/\//g, "-"), name].filter(Boolean).join(" ")}`
+    .replace(/[\\/:*?"<>|]+/g, "").slice(0, 120) + ".pdf";
+}
+
+// Saves the PDF straight from the free open dataset (it allows cross-site downloads), so it
+// costs this server no bandwidth. Falls back to opening the PDF if the fetch fails.
+async function downloadPdf(j, button) {
+  button.disabled = true;
+  button.textContent = "Downloading…";
+  try {
+    const res = await fetch(j.pdf_url);
+    if (!res.ok) throw new Error(res.statusText);
+    const url = URL.createObjectURL(await res.blob());
+    el("a", { href: url, download: pdfFilename(j) }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (_) {
+    window.open(j.pdf_url, "_blank", "noopener");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Download PDF";
+  }
+}
+
+async function copyText(text, button, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    // Clipboard API needs https or localhost; the LAN address is plain http.
+    const area = el("textarea", { style: "position:fixed;opacity:0" }, text);
+    document.body.append(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  button.textContent = "Copied";
+  setTimeout(() => { button.textContent = label; }, 1500);
+}
+
+function shareLink(j, button) {
+  const url = `${location.origin}/judgment?id=${j.id}`;
+  if (navigator.share) {
+    navigator.share({ title: j.title, text: j.citation, url }).catch(() => {});
+  } else {
+    copyText(url, button, "Copy share link");
+  }
+}
+
+function actionsBar(j) {
+  const download = el("button", { type: "button" }, "Download PDF");
+  download.addEventListener("click", () => downloadPdf(j, download));
+  const cite = el("button", { type: "button" }, "Copy citation");
+  cite.addEventListener("click", () => copyText(j.citation, cite, "Copy citation"));
+  const share = el("button", { type: "button" }, navigator.share ? "Share" : "Copy share link");
+  share.addEventListener("click", () => shareLink(j, share));
+  return el("section", { class: "cite-box" },
+    el("p", { class: "citation" }, j.citation),
+    el("div", { class: "actions" }, download, cite, share,
+      el("a", { class: "pdf", href: j.pdf_url, target: "_blank", rel: "noopener" }, "Open PDF")),
+  );
+}
+
 async function load() {
   const id = new URLSearchParams(location.search).get("id");
   if (document.referrer && new URL(document.referrer).origin === location.origin) {
@@ -145,7 +209,7 @@ async function load() {
       el("p", {}, j.key_reasoning),
       el("p", { class: "note" }, "Picked automatically from the judgment's reasoning."),
     ),
-    el("a", { class: "pdf", href: j.pdf_url, target: "_blank", rel: "noopener" }, "Open the judgment PDF"),
+    actionsBar(j),
     savePanel(j),
     el("dl", {},
       field("Case", caseNumber(j)),

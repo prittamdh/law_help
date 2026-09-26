@@ -91,7 +91,12 @@ article.judgment h1 { font-size: 20px; margin: 0 0 6px; }
 article.judgment dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 16px 0; }
 article.judgment dt { color: var(--muted); font-size: 13px; }
 article.judgment dd { margin: 0; }
-article.judgment .pdf { display: inline-block; margin: 6px 0 12px; font-weight: 600; }
+article.judgment .cite-box { margin: 10px 0 12px; padding: 10px 12px; background: var(--accent-soft); border-radius: 6px; }
+article.judgment .citation { margin: 0 0 8px; font: 14px/1.5 Georgia, "Times New Roman", serif; user-select: all; }
+article.judgment .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+article.judgment .actions button { padding: 6px 12px; font-size: 13px; }
+article.judgment .actions button + button { background: var(--panel); color: var(--accent); border: 1px solid var(--line); }
+article.judgment .pdf { font-weight: 600; font-size: 13px; }
 article.judgment h2 { font-size: 15px; margin: 20px 0 8px; }
 article.judgment .text {
   white-space: pre-wrap; font: 14px/1.6 Georgia, "Times New Roman", serif;

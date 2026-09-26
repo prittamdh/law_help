@@ -116,3 +116,21 @@ def test_results_carry_a_headline(client):
     body = client.get("/judgments", params={"act": "NDPS Act"}).json()
     assert body["results"][0]["headline"] == "Criminal appeal · NDPS Act s. 8, 15 · IPC s. 120B · Allowed"
     assert client.get(f"/judgments/{body['results'][0]['id']}").json()["headline"].startswith("Criminal appeal")
+
+
+def test_citation_line(client):
+    ladu = client.get("/judgments", params={"case_type": "CRLA"}).json()["results"][0]
+    j = client.get(f"/judgments/{ladu['id']}").json()
+    assert j["citation"] == "Ladu v. State (Raj.) [S.B. Criminal Appeal No. 28/1994, decided on 20.05.2024, Jaipur Bench]"
+
+
+def test_citation_line_formats():
+    from datetime import date
+
+    from law_help.api import citation_line
+    j = {"petitioner": "RAM", "respondent": "UNION OF INDIA", "parties": {"petitioners": ["RAM", "SHYAM"]},
+         "neutral_citation": "2024:RJ-JD:12345-DB", "case_type": "CW", "case_number": 5, "case_year": 2020,
+         "bench_strength": "division", "decision_date": date(2023, 3, 1), "bench": "jodhpur"}
+    assert citation_line(j) == ("Ram & Ors. v. Union of India, 2024:RJ-JD:12345-DB (Raj.) "
+                                "[D.B. Civil Writ Petition No. 5/2020, decided on 01.03.2023, Jodhpur Bench]")
+    assert citation_line({"title": "CW/1/2020 of A Vs B"}) == "A v. B (Raj.)"
