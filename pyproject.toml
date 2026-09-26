@@ -11,6 +11,7 @@ dependencies = [
     "pyarrow>=15",
     "pypdf>=4",
     "pypdfium2>=4.30",
+    "anthropic>=1.8",
 ]
 
 [project.optional-dependencies]

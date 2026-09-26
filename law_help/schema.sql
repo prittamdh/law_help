@@ -74,3 +74,9 @@ CREATE TABLE IF NOT EXISTS text_archives (
     done        BOOLEAN     NOT NULL DEFAULT false,
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Model-written summary from law_help.summarize: {"summary", "issues", "holding", "outcome"}.
+-- The extractive `summary` above stays as the fallback until this is filled.
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS ai_summary       JSONB;
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS ai_summary_model TEXT;
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS ai_summarized_at TIMESTAMPTZ;
