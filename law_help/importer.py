@@ -19,6 +19,7 @@ import httpx
 import pyarrow.parquet as pq
 
 from . import db, extract
+from .goodlaw import link_treatments
 from .parse import BENCHES, bench_strength, parse_date, parse_judges, parse_title
 
 BUCKET_URL = "https://indian-high-court-judgments.s3.ap-south-1.amazonaws.com"
@@ -346,6 +347,8 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("citations", help="link each judgment to the earlier judgments of this court it "
                                      "cites (\"cited by\"); `structure` and `update` run it too")
+    sub.add_parser("goodlaw", help="flag judgments a later judgment set aside, recalled or overruled "
+                                   "(run after `citations`); `structure` and `update` run it too")
 
     hi = sub.add_parser("hindi", help="convert Hindi orders typed in the old Kruti Dev font to "
                                       "readable, searchable Hindi (no downloads; safe to re-run)")
@@ -374,13 +377,15 @@ def main(argv: list[str] | None = None) -> None:
         print(f"checked {s['checked']} partitions, changed: {changed}")
         if not args.dry_run:
             print(f"{s['new']} new judgments, {s['updated']} refreshed, text extracted for {s['text']}, "
-                  f"{s['citations']} citations linked; "
+                  f"{s['citations']} citations linked, {s['treatments']} judgments flagged as set aside or overruled; "
                   f"latest decision date {s['latest_decision']}")
         if s["stale"]:
             print(f"warning: the dataset was last updated {s['dataset_updated']:%Y-%m-%d}, "
                   f"over {args.stale_days} days ago", file=sys.stderr)
     elif args.command == "citations":
         print(f"linked {link_citations()} citations")
+    elif args.command == "goodlaw":
+        print(f"flagged {link_treatments()} judgments set aside, recalled or overruled")
     elif args.command == "text":
         from .text import extract_text
 
@@ -392,7 +397,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"converted {n} Hindi judgments")
     else:
         n = structure(args.limit, args.all, args.workers)
-        print(f"structured {n} judgments; linked {link_citations()} citations")
+        print(f"structured {n} judgments; linked {link_citations()} citations; "
+              f"flagged {link_treatments()} judgments set aside, recalled or overruled")
 
 
 if __name__ == "__main__":

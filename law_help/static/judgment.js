@@ -50,6 +50,19 @@ function citedBy(j) {
   ];
 }
 
+// "Set aside on appeal by SAW/253/2024 · 25 Jul 2024", with the later judgment's own words.
+function treatedBy(j) {
+  if (!j.treated_by?.length) return "";
+  return el("section", { class: "bad-law" },
+    j.treated_by.map((t) => el("div", {},
+      el("p", {}, el("strong", {}, GOOD_LAW[t.kind]), " by ",
+        el("a", { href: `/judgment?id=${t.id}` }, [caseNumber(t), formatDate(t.decision_date)].filter(Boolean).join(" · "))),
+      el("blockquote", {}, t.quote),
+    )),
+    el("p", { class: "note" }, "Found automatically in this court's later judgments. Check the later judgment before relying on this one."),
+  );
+}
+
 // The model summary when there is one; otherwise the two sentences copied from the judgment.
 function summaryBlock(j) {
   const ai = j.ai_summary;
@@ -203,6 +216,7 @@ async function load() {
   content.replaceChildren(el("article", { class: "judgment" },
     el("h1", {}, j.title),
     j.headline && el("p", { class: "headline" }, j.headline),
+    treatedBy(j),
     summaryBlock(j),
     j.key_reasoning && el("section", { class: "key-reasoning" },
       el("h3", {}, "Key passage"),
