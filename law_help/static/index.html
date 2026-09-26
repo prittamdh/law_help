@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>law_help: Rajasthan High Court judgments</title>
+  <title>law_help: Supreme Court and Rajasthan High Court judgments</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <header class="site">
     <a class="brand" href="/">law_help</a>
-    <span id="corpus">Rajasthan High Court judgments</span>
+    <span id="corpus">Supreme Court and Rajasthan High Court judgments</span>
     <span><a href="/saved">Saved</a></span>
   </header>
   <main>
@@ -21,9 +21,16 @@
       <div class="layout">
         <aside class="filters">
           <h2>Filters</h2>
+          <label for="f-court">Court</label>
+          <select id="f-court" name="court">
+            <option value="">All courts</option>
+            <option value="supreme">Supreme Court</option>
+            <option value="rajasthan">Rajasthan High Court</option>
+          </select>
+
           <label for="f-bench">Bench</label>
           <select id="f-bench" name="bench">
-            <option value="">Both benches</option>
+            <option value="">Any bench</option>
             <option value="jaipur">Jaipur</option>
             <option value="jodhpur">Jodhpur</option>
           </select>
@@ -70,7 +77,8 @@
     </form>
   </main>
   <footer class="site">
-    Data: <a href="https://registry.opendata.aws/indian-high-court-judgments/">Indian High Court Judgments</a> (CC-BY-4.0), sourced from eCourts.
+    Data: <a href="https://registry.opendata.aws/indian-high-court-judgments/">Indian High Court Judgments</a> and
+    <a href="https://registry.opendata.aws/indian-supreme-court-judgments/">Indian Supreme Court Judgments</a> (CC-BY-4.0), sourced from eCourts and eSCR.
     Always check the original PDF before relying on a judgment.
   </footer>
   <script src="/static/common.js"></script>

@@ -215,10 +215,10 @@ def test_parse_pdf_reports_errors_instead_of_raising():
 def test_a_structure_bug_keeps_the_text_and_records_the_error(monkeypatch):
     real = extract.extract
 
-    def broken(text):
+    def broken(text, supreme=False):
         if text:
             raise AttributeError("rule bug")
-        return real(text)
+        return real(text, supreme)
 
     monkeypatch.setattr(extract, "extract", broken)
     out = text.parse_pdf(judgment_pdf(8))

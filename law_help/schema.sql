@@ -109,3 +109,8 @@ CREATE TABLE IF NOT EXISTS treatments (
     quote       TEXT   NOT NULL,
     PRIMARY KEY (judgment_id, by_id)
 );
+
+-- Supreme Court judgments (law_help.supreme): court = 'Supreme Court of India', bench = 'supreme court',
+-- neutral_citation '2024 INSC 735' from the metadata, and the Supreme Court Reports citation here.
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS report_citation TEXT;  -- e.g. '[2024] 10 S.C.R. 108'
+CREATE INDEX IF NOT EXISTS judgments_court_idx ON judgments (court, decision_date DESC);
