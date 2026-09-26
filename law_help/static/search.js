@@ -42,6 +42,7 @@ function resultItem(j) {
   const judges = names?.length ? names.map(titleCase).join(", ") : "";
   return el("li", {},
     el("a", { class: "title", href: `/judgment?id=${j.id}` }, j.title),
+    j.headline && el("div", { class: "headline" }, j.headline),
     el("div", { class: "meta" },
       el("span", { class: "chip" }, titleCase(j.bench)),
       j.disposal_nature && el("span", { class: "chip outcome" }, titleCase(j.disposal_nature)),

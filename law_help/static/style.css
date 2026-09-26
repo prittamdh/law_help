@@ -61,6 +61,12 @@ ol.results .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
 ol.results .meta a { margin-left: 8px; }
 ol.results .snippet { margin: 6px 0 0; font-size: 14px; }
 article.judgment .summary-text { font-size: 15px; margin: 10px 0 4px; }
+.headline { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+article.judgment p.headline { font-size: 14px; margin: 0 0 8px; }
+article.judgment .key-reasoning { border-left: 3px solid var(--line); padding: 2px 0 2px 12px; margin: 10px 0; }
+article.judgment .key-reasoning h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 4px 0; }
+article.judgment .key-reasoning p { margin: 4px 0; }
+article.judgment .key-reasoning .note { color: var(--muted); font-size: 12px; }
 article.judgment .ai-summary { border-left: 3px solid var(--accent-soft); padding: 2px 0 2px 12px; margin: 10px 0; }
 article.judgment .ai-summary h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 10px 0 4px; }
 article.judgment .ai-summary p { margin: 4px 0; }

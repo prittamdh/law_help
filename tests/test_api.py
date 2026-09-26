@@ -110,3 +110,9 @@ def test_detail_and_stats_carry_structured_fields(client):
     assert detail["acts_cited"][0]["sections"] == ["8", "15"]
     acts = {r["act"] for r in client.get("/stats").json()["top_acts"]}
     assert "Indian Penal Code, 1860" in acts
+
+
+def test_results_carry_a_headline(client):
+    body = client.get("/judgments", params={"act": "NDPS Act"}).json()
+    assert body["results"][0]["headline"] == "Criminal appeal · NDPS Act s. 8, 15 · IPC s. 120B · Allowed"
+    assert client.get(f"/judgments/{body['results'][0]['id']}").json()["headline"].startswith("Criminal appeal")

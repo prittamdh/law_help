@@ -39,14 +39,16 @@ A PDF that can't be parsed is marked done with `text_language = 'no-text'` and t
 
 ## AI summaries
 
-`python -m law_help.importer text` stores a short extractive summary (two of the court's own sentences). For a proper summary, with the issues decided and what the court held, set a Claude API key and run the summarizer over judgments that have text:
+Every judgment with text gets these for free, from rules in `law_help/extract.py`: a one-line headline ("Bail application · NDPS Act s. 8, 21 · Bail granted"), a two-sentence extractive summary, the outcome, and for long judgments a "key passage" picked from the court's reasoning.
+
+For a written summary (the issues decided and what the court held), `python -m law_help.summarize` asks a model and stores the result in `ai_summary`. By default it uses a model running locally in [Ollama](https://ollama.com), which is free. [docs/desktop-summaries.md](docs/desktop-summaries.md) has the steps for a Windows gaming PC.
 
 ```bash
-export ANTHROPIC_API_KEY=...
-python -m law_help.summarize --limit 100      # newest first; re-running skips ones already done
+ollama pull qwen3:14b
+python -m law_help.summarize --min-chars 8000 --limit 100     # long judgments, newest first
 ```
 
-It uses `claude-opus-5` by default; set `LAW_HELP_SUMMARY_MODEL` to use another model. Hindi orders in the legacy Kruti Dev font and scans without text are skipped. Where no AI summary exists, the site shows the extractive one.
+Settings: `LAW_HELP_OLLAMA_MODEL` (default `qwen3:14b`) and `OLLAMA_HOST` (default `http://localhost:11434`). The Claude API is also supported but paid, so it stays off unless chosen with `LAW_HELP_SUMMARIZER=claude` and an `ANTHROPIC_API_KEY` (model: `LAW_HELP_SUMMARY_MODEL`, default `claude-opus-5`). Hindi orders in the legacy Kruti Dev font and scans without text are skipped. Where no AI summary exists, the site shows the extractive one.
 
 ## Structured fields
 
@@ -61,6 +63,8 @@ When `text` fetches a PDF it also derives these columns from the judgment itself
 | `acts_cited` | `[{"act": "Indian Penal Code, 1860", "sections": ["354", "376"]}]` |
 | `cases_cited` | `[{"name": "Gian Singh v. State of Punjab & Anr.", "citations": ["JT 2012(9) SC 426"]}]` |
 | `summary` | the court's sentence on what was sought, then its sentence on the outcome |
+| `outcome` | what the court did, from its closing lines: `Bail granted`, `Withdrawn`, `Proceedings quashed`… |
+| `key_reasoning` | long judgments only: three sentences that read most like the court's reasons |
 | `text_language` | `en`, `hi-krutidev` (legacy Hindi font, body fields left empty) or `no-text` (a scan) |
 
 `acts_cited` and `cases_cited` have GIN indexes, so "every judgment citing Section 376 IPC" is
@@ -102,7 +106,7 @@ Until `text` has run, full-text search only sees the title and the opening lines
 - `law_help/text.py`: parallel, resumable PDF download and text extraction
 - `law_help/extract.py`: pulls parties, advocates, judges, acts, cited cases and a summary out of judgment text
 - `eval/`: hand-labelled judgments and the script that scores the extractor against them
-- `law_help/summarize.py`: Claude-written summaries (summary, issues, holding, outcome) stored in `ai_summary`
+- `law_help/summarize.py`: model-written summaries (summary, issues, holding, outcome) from local Ollama or the Claude API, stored in `ai_summary`
 - `law_help/api.py`: the FastAPI search API
 - `law_help/static/`: the search and judgment pages (plain HTML, CSS and JavaScript, no build step)
 

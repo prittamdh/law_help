@@ -44,6 +44,8 @@ ALTER TABLE judgments ADD COLUMN IF NOT EXISTS bench_judges     TEXT[]; -- as pr
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS acts_cited       JSONB;  -- [{"act": ..., "sections": [...]}]
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS cases_cited      JSONB;  -- [{"name": ..., "citations": [...]}]
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS summary          TEXT;
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS outcome          TEXT;   -- 'Bail granted', 'Dismissed', ... from the closing lines
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS key_reasoning    TEXT;   -- long judgments only: the court's reasons, copied
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS extractor_version INTEGER;
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS structured_at    TIMESTAMPTZ;
 

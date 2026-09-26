@@ -127,6 +127,7 @@ UPDATE judgments SET
     text_language = %(language)s, neutral_citation = %(neutral_citation)s,
     parties = %(parties)s, advocates = %(advocates)s, bench_judges = %(judges)s,
     acts_cited = %(acts_cited)s, cases_cited = %(cases_cited)s, summary = %(summary)s,
+    outcome = %(outcome)s, key_reasoning = %(key_reasoning)s,
     extractor_version = %(extractor_version)s, structured_at = now()
 WHERE id = %(id)s
 """
@@ -146,6 +147,8 @@ def _structure_params(judgment_id: int, text: str | None, fields: dict | None = 
         "acts_cited": Jsonb(fields["acts_cited"]),
         "cases_cited": Jsonb(fields["cases_cited"]),
         "summary": fields["summary"],
+        "outcome": fields["outcome"],
+        "key_reasoning": fields["key_reasoning"],
         "extractor_version": fields["extractor_version"],
     }
 

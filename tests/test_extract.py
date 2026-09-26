@@ -154,3 +154,37 @@ def test_structure_command_fills_columns(monkeypatch):
 def test_lower_case_order_and_rule():
     got = extract.acts_cited("The application under order vii rule 11 of the Code of Civil Procedure, 1908 fails.")
     assert got == [{"act": "Code of Civil Procedure, 1908", "sections": ["Order VII Rule 11"]}]
+
+
+def test_outcome_takes_the_last_operative_sentence():
+    body = ("The petitioner relies on an order where the accused was released on bail. "
+            "Having regard to the mandate of Section 37 of the NDPS Act, no case for bail is made out. "
+            "Accordingly, the bail application is dismissed. Stay application stands disposed of.")
+    assert extract.outcome(body) == "Bail refused"
+    assert extract.outcome("Counsel seeks leave to withdraw the petition. "
+                           "The writ petition is dismissed as withdrawn.") == "Withdrawn"
+    assert extract.outcome("For these reasons the petition is allowed and FIR No. 12/2020 "
+                           "and all proceedings arising from it are quashed.") == "Proceedings quashed"
+    assert extract.outcome("The facts need no repetition here at all.") is None
+
+
+def test_key_reasoning_picks_the_courts_reasons_in_a_long_judgment():
+    facts = "The petitioner was appointed as a teacher in the year 2001 by the respondents. " * 100
+    args = "Learned counsel for the petitioner submitted that the order is arbitrary and illegal. " * 5
+    reasons = ("Having considered the rival submissions, this Court is of the considered view that the "
+               "order was passed without notice. It is well settled that no adverse order can be passed "
+               "without hearing. Therefore, this Court finds that the order cannot be sustained. ")
+    order = "Accordingly, the writ petition is allowed. The impugned order is set aside. No order as to costs."
+    body = facts + args + reasons + order
+    got = extract.key_reasoning(body)
+    assert got.startswith("Having considered") and "cannot be sustained" in got
+    assert extract.key_reasoning(reasons + order) is None  # short orders get none
+
+
+def test_headline_prefers_the_substantive_act_and_the_text_outcome():
+    acts = [{"act": "Code of Criminal Procedure, 1973", "sections": ["439"]},
+            {"act": "Narcotic Drugs and Psychotropic Substances Act, 1985", "sections": ["8", "21", "29"]}]
+    assert extract.headline("CRLMB", acts, "Bail granted") == "Bail application · NDPS Act s. 8, 21, 29 · Bail granted"
+    assert extract.headline("CW", [{"act": "Constitution of India", "sections": ["226"]}], None, "DISMISSED") \
+        == "Writ petition · Constitution art. 226 · Dismissed"
+    assert extract.headline("XYZ", [], None) is None

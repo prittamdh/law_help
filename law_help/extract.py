@@ -21,7 +21,7 @@ stored text whenever the rules improve (bump EXTRACTOR_VERSION when they do).
 import io
 import re
 
-EXTRACTOR_VERSION = 1
+EXTRACTOR_VERSION = 2
 
 # --------------------------------------------------------------------------- PDF text
 
@@ -594,6 +594,135 @@ def summary(body_text: str, max_chars: int = 600) -> str | None:
     return " ".join(out)
 
 
+# --------------------------------------------------------------------------- outcome, reasoning, headline
+
+# The court's operative words, most specific first. Checked against the closing sentences.
+_OUTCOMES: list[tuple[str, re.Pattern]] = [(label, re.compile(rx, re.I)) for label, rx in [
+    ("Withdrawn", r"\b(?:dismissed|disposed of)\s+as\s+(?:having been\s+)?withdrawn|\bpermitted to withdraw|"
+                  r"\bis\s+(?:hereby\s+)?withdrawn"),
+    ("Dismissed as infructuous", r"\binfructuous\b"),
+    ("Dismissed for non-prosecution", r"\bdismissed\b[^.]{0,40}\b(?:in default|for non[- ]?prosecution)"),
+    ("Leave to appeal granted", r"\bleave to appeal is (?:hereby )?granted"),
+    ("Bail granted", r"\b(?:released|enlarged) on (?:regular |anticipatory )?bail|\bbail application\b[^.]{0,60}\ballowed\b"),
+    ("Bail refused", r"\bbail application\b[^.]{0,60}\b(?:dismissed|rejected)\b"),
+    ("Sentence suspended", r"\bsentence\b[^.]{0,80}\bsuspended\b"),
+    ("Partly allowed", r"\b(?:partly|partially)\s+allowed|\ballowed\s+(?:in part|partly)"),
+    ("Proceedings quashed", r"\b(?:FIR|F\.I\.R\.?|proceedings?|charge[- ]?sheet|complaint|cognizance)\b[^.]{0,200}"
+                            r"\bquashed|\bquashed\b[^.]{0,80}\b(?:FIR|F\.I\.R|proceedings)\b"),
+    ("Allowed", r"\b(?:is|are|stands?|hereby|accordingly)\s+(?:also\s+)?(?:hereby\s+)?allowed\b"),
+    ("Dismissed", r"\b(?:is|are|stands?|hereby|accordingly)\s+(?:also\s+)?(?:hereby\s+)?(?:dismissed|rejected)\b"),
+    ("Remanded", r"\bremanded?\b|\bremitted back\b"),
+    ("Disposed of", r"\bdisposed of\b"),
+]]
+
+
+def outcome(body_text: str) -> str | None:
+    """What the court did, as a short label ("Bail granted", "Dismissed"), from the closing lines.
+
+    The last sentence that states an outcome wins: earlier ones are often the court quoting
+    an argument or another case.
+    """
+    for sent in reversed(_sentences(body_text)[-10:]):
+        if _BOILERPLATE_RE.search(sent):
+            continue
+        for label, rx in _OUTCOMES:
+            if rx.search(sent):
+                return label
+    return None
+
+
+# Words a judge uses when giving reasons, and words that mark a party's argument instead.
+_REASONING_RE = re.compile(
+    r"\b(?:(?:in|to) (?:my|our) (?:considered )?(?:view|opinion)|(?:this court|we|i) (?:am|are|is) "
+    r"(?:of the|of the considered) (?:view|opinion)|considered (?:view|opinion)|having (?:heard|considered|"
+    r"perused|gone through)|in (?:the )?(?:light|view) of (?:the )?(?:above|aforesaid|foregoing)|"
+    r"it is (?:thus |therefore )?(?:clear|evident|apparent|well settled|settled)|the law is (?:well )?settled|"
+    r"(?:question|issue) (?:that arises|for consideration|which arises)|(?:therefore|thus|hence),? "
+    r"(?:this court|we|it)|this court (?:finds|holds|is satisfied)|no (?:merit|substance)|"
+    r"(?:we|this court) (?:find|hold|are satisfied))\b", re.I)
+_ARGUMENT_RE = re.compile(r"\b(?:counsel|learned (?:PP|AAG|AG|GA)|petitioner|appellant|respondent)s?\b"
+                          r"[^.]{0,80}\b(?:submit|submits|submitted|contend|contends|contended|argue|"
+                          r"argues|argued|urged|pointed out)\b", re.I)
+
+
+def key_reasoning(body_text: str, min_body: int = 8000, max_chars: int = 900) -> str | None:
+    """For a long judgment, the three consecutive sentences that most read like the court's reasons.
+
+    Short orders say what they decide in the summary already, so they get nothing here.
+    """
+    if len(body_text) < min_body:
+        return None
+    sents = _sentences(body_text)
+    if len(sents) < 12:
+        return None
+    score = [len(_REASONING_RE.findall(s)) - 2 * bool(_ARGUMENT_RE.search(s)) - bool(_BOILERPLATE_RE.search(s))
+             for s in sents]
+    # Reasons come after the facts and arguments: skip the first third, and the closing order.
+    start, end = len(sents) // 3, max(len(sents) // 3 + 3, len(sents) - 3)
+    windows = [(sum(score[i:i + 3]), -i) for i in range(start, end - 2)]
+    if not windows:
+        return None
+    best, neg_i = max(windows)
+    if best < 2:
+        return None
+    text = re.sub(r"\s+\d+(?:\.\d+)*\.?$", "", " ".join(sents[-neg_i:-neg_i + 3]))  # a trailing "11.1."
+    if len(text) > max_chars:
+        text = text[:max_chars - 1].rsplit(" ", 1)[0] + "…"
+    return text
+
+
+# Rajasthan HC case type codes, for the headline. Codes not listed are shown as they are.
+CASE_KINDS = {
+    "CW": "Writ petition", "CRLMB": "Bail application", "CRLMP": "Criminal misc. petition",
+    "CRLW": "Criminal writ petition", "CMA": "Civil misc. appeal", "CRLR": "Criminal revision",
+    "SOSA": "Suspension of sentence", "SOSR": "Suspension of sentence", "CCP": "Contempt petition",
+    "CRLAS": "Criminal appeal", "CRLA": "Criminal appeal", "CRLAD": "Criminal appeal",
+    "SAW": "Special appeal (writ)", "HC": "Habeas corpus", "CFA": "First appeal",
+    "CRLLA": "Leave to appeal", "CR": "Civil revision", "CSA": "Second appeal",
+    "ARBAP": "Arbitration application", "ITA": "Income tax appeal",
+}
+# Short names for the acts lawyers abbreviate anyway.
+_ACT_SHORT = {
+    "Indian Penal Code, 1860": "IPC", "Code of Criminal Procedure, 1973": "CrPC",
+    "Code of Civil Procedure, 1908": "CPC", "Bharatiya Nagarik Suraksha Sanhita, 2023": "BNSS",
+    "Bharatiya Nyaya Sanhita, 2023": "BNS", "Bharatiya Sakshya Adhiniyam, 2023": "BSA",
+    "Narcotic Drugs and Psychotropic Substances Act, 1985": "NDPS Act",
+    "Negotiable Instruments Act, 1881": "NI Act", "Constitution of India": "Constitution",
+    "Protection of Children from Sexual Offences Act, 2012": "POCSO Act",
+    "Scheduled Castes and Scheduled Tribes (Prevention of Atrocities) Act, 1989": "SC/ST Act",
+    "Prevention of Corruption Act, 1988": "PC Act", "Information Technology Act, 2000": "IT Act",
+    "Motor Vehicles Act, 1988": "MV Act",
+}
+# Acts that carry the case into court rather than say what it is about.
+_PROCEDURAL = {"Code of Criminal Procedure, 1973", "Bharatiya Nagarik Suraksha Sanhita, 2023",
+               "Code of Civil Procedure, 1908", "Constitution of India", "Limitation Act, 1963",
+               "General Clauses Act, 1897", "Indian Evidence Act, 1872", "Bharatiya Sakshya Adhiniyam, 2023"}
+
+
+def _is_procedural(act: str) -> bool:
+    return act in _PROCEDURAL or bool(re.search(r"\bProcedure\b", act))
+
+
+def headline(case_type: str | None, acts: list[dict] | None, outcome_label: str | None,
+             disposal: str | None = None) -> str | None:
+    """One line to scan a result by: "Bail application · NDPS Act s. 8, 21 · Bail granted"."""
+    parts = []
+    if case_type:
+        parts.append(CASE_KINDS.get(case_type.upper(), case_type))
+    # What the case is about (IPC, NDPS Act), not how it reached court (CrPC s. 439), when both are cited.
+    acts = acts or []
+    acts = [a for a in acts if not _is_procedural(a["act"])][:2] or acts[:1]
+    for a in acts:
+        name = _ACT_SHORT.get(a["act"], re.sub(r",?\s*\d{4}$", "", a["act"]))
+        secs = a.get("sections") or []
+        prefix = "art." if a["act"] == "Constitution of India" else "s."
+        parts.append(f"{name} {prefix} {', '.join(secs[:4])}{'…' if len(secs) > 4 else ''}" if secs else name)
+    result = outcome_label or (disposal.strip().capitalize() if disposal else None)
+    if result:
+        parts.append(result)
+    return " · ".join(parts) if len(parts) > 1 else None
+
+
 # --------------------------------------------------------------------------- all together
 
 
@@ -615,10 +744,14 @@ def extract(text: str) -> dict:
         "acts_cited": [],
         "cases_cited": [],
         "summary": None,
+        "outcome": None,
+        "key_reasoning": None,
     }
     if lang == "en":
         b = body(text)
         out["acts_cited"] = acts_cited(b)
         out["cases_cited"] = cases_cited(b, citation)
         out["summary"] = summary(b)
+        out["outcome"] = outcome(b)
+        out["key_reasoning"] = key_reasoning(b)
     return out
