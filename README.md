@@ -16,7 +16,8 @@ pip install -e '.[dev]'
 
 python -m law_help.importer metadata --year 2024            # both benches, one year (~30s)
 python -m law_help.importer metadata                         # every year (1989 onward)
-python -m law_help.importer text --limit 500                 # fetch PDFs, extract text and structure
+python -m law_help.importer text --year 2024                 # fetch PDFs, extract text and structure (~6 min)
+python -m law_help.importer text                             # every judgment still without text
 python -m law_help.importer structure                        # re-derive structure from stored text
 
 uvicorn law_help.api:app --reload     # search UI at http://localhost:8000, API docs at /docs
@@ -25,6 +26,16 @@ uvicorn law_help.api:app --reload     # search UI at http://localhost:8000, API 
 Set `DATABASE_URL` to point somewhere other than `postgresql://law:law@localhost:5432/law_help`.
 
 The importer is idempotent. Re-running it updates existing rows by PDF link and keeps text that has already been extracted.
+
+## Extracting the text
+
+`importer text` fetches the PDF of every judgment that has no text yet, extracts the text with pdfium, and derives the structured fields below. It is safe to stop at any point and run again: judgments are committed a hundred at a time and a re-run carries on where the last one stopped.
+
+For a backfill it streams the dataset's per-year tar archives (`data/tar/...`, 4 GB for Jaipur 2024) instead of making one request per PDF, and works on four year-bench partitions at once (`--streams`). Parsing runs on every CPU (`--workers`). `text_archives` remembers how far into each archive a run got, so an interrupted run resumes mid-archive with a Range request, and a dropped connection reconnects the same way. Partitions with fewer than 2,000 judgments left, and any judgment an archive lacks, are fetched one PDF at a time. `--limit N` does only the newest N one by one, which is what `update` uses.
+
+On a 16-vCPU cloud sandbox, 2023 and 2024 (210,558 judgments, 14 GB of PDFs) took 12 minutes at 271 judgments a second, bound by CPU. The whole collection (about 1.1 million judgments, 79 GB) should take a little over an hour on the same machine, and the database grows by about 11 KB per judgment (12 GB in all).
+
+A PDF that can't be parsed is marked done with `text_language = 'no-text'` and the reason in `text_error`; `--retry-errors` tries those again. In 2023 and 2024 that was 10 PDFs the dataset lists but doesn't have. A PDF that can't be downloaded is left for the next run.
 
 ## Structured fields
 
@@ -76,7 +87,8 @@ Until `text` has run, full-text search only sees the title and the opening lines
 
 - `law_help/schema.sql`: the `judgments` table, with a weighted `tsvector` (title > opening lines > full text)
 - `law_help/parse.py`: splits eCourts titles into case type/number/year and parties, and parses bench composition and dates
-- `law_help/importer.py`: the metadata, PDF-text and structure importer
+- `law_help/importer.py`: the importer commands (metadata, text, structure, update)
+- `law_help/text.py`: parallel, resumable PDF download and text extraction
 - `law_help/extract.py`: pulls parties, advocates, judges, acts, cited cases and a summary out of judgment text
 - `eval/`: hand-labelled judgments and the script that scores the extractor against them
 - `law_help/api.py`: the FastAPI search API
