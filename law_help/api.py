@@ -32,6 +32,11 @@ def judgment_page():
     return FileResponse(STATIC_DIR / "judgment.html")
 
 
+@app.get("/saved", include_in_schema=False)
+def saved_page():
+    return FileResponse(STATIC_DIR / "saved.html")
+
+
 LIST_COLUMNS = """
     id, bench, cnr, case_type, case_number, case_year, title, petitioner, respondent,
     judges, bench_judges, bench_strength, disposal_nature, decision_date, pdf_key,

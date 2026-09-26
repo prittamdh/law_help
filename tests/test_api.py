@@ -84,7 +84,7 @@ def test_get_one_and_404(client):
 
 
 def test_ui_pages_are_served(client):
-    for path in ("/", "/judgment"):
+    for path in ("/", "/judgment", "/saved"):
         res = client.get(path)
         assert res.status_code == 200 and "<html" in res.text
     assert client.get("/static/search.js").status_code == 200

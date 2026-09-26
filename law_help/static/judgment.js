@@ -62,6 +62,53 @@ function summaryBlock(j) {
   );
 }
 
+// "Save" panel: pick folders and write notes; stored in this browser by SavedStore.
+function savePanel(j) {
+  const info = { title: j.title, case: caseNumber(j), bench: j.bench, date: j.decision_date };
+  const box = el("section", { class: "save-panel" });
+
+  function render() {
+    const item = SavedStore.get(j.id);
+    const folders = SavedStore.all().folders;
+    if (!item) {
+      const save = el("button", { type: "button" }, "Save");
+      save.addEventListener("click", () => { SavedStore.put(j.id, info, {}); render(); });
+      box.replaceChildren(save, el("a", { class: "saved-link", href: "/saved" }, "Saved judgments"));
+      return;
+    }
+    const checks = folders.map((f) => {
+      const cb = el("input", { type: "checkbox", checked: item.folders.includes(f) });
+      cb.addEventListener("change", () => {
+        const cur = SavedStore.get(j.id).folders;
+        SavedStore.put(j.id, info, { folders: cb.checked ? [...cur, f] : cur.filter((x) => x !== f) });
+      });
+      return el("label", { class: "folder-check" }, cb, f);
+    });
+    const newFolder = el("input", { placeholder: "New folder, press Enter", "aria-label": "New folder name" });
+    newFolder.addEventListener("keydown", (e) => {
+      const name = newFolder.value.trim();
+      if (e.key !== "Enter" || !name) return;
+      e.preventDefault();
+      SavedStore.put(j.id, info, { folders: [...new Set([...SavedStore.get(j.id).folders, name])] });
+      render();
+    });
+    const note = el("textarea", { rows: 3, placeholder: "Notes on this judgment" });
+    note.value = item.note || "";
+    note.addEventListener("input", () => SavedStore.put(j.id, info, { note: note.value }));
+    const unsave = el("button", { type: "button", class: "link" }, "Remove from saved");
+    unsave.addEventListener("click", () => {
+      if (!item.note || confirm("Remove this judgment and its notes from saved?")) { SavedStore.remove(j.id); render(); }
+    });
+    box.replaceChildren(
+      el("div", { class: "save-head" }, el("strong", {}, "Saved"), el("a", { class: "saved-link", href: "/saved" }, "All saved judgments"), unsave),
+      el("div", { class: "folder-checks" }, checks, newFolder),
+      note,
+    );
+  }
+  render();
+  return box;
+}
+
 async function load() {
   const id = new URLSearchParams(location.search).get("id");
   if (document.referrer && new URL(document.referrer).origin === location.origin) {
@@ -99,6 +146,7 @@ async function load() {
       el("p", { class: "note" }, "Picked automatically from the judgment's reasoning."),
     ),
     el("a", { class: "pdf", href: j.pdf_url, target: "_blank", rel: "noopener" }, "Open the judgment PDF"),
+    savePanel(j),
     el("dl", {},
       field("Case", caseNumber(j)),
       field("Citation", j.neutral_citation),
