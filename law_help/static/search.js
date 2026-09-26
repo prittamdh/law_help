@@ -44,6 +44,7 @@ function resultItem(j) {
     el("a", { class: "title", href: `/judgment?id=${j.id}` }, j.title),
     j.headline && el("div", { class: "headline" }, j.headline),
     el("div", { class: "meta" },
+      goodLawChip(j.good_law),
       el("span", { class: "chip" }, titleCase(j.bench)),
       j.disposal_nature && el("span", { class: "chip outcome" }, titleCase(j.disposal_nature)),
       j.decision_date ? `Decided ${formatDate(j.decision_date)}` : "Decision date unknown",

@@ -35,7 +35,10 @@ def judgment_page():
 LIST_COLUMNS = """
     id, bench, cnr, case_type, case_number, case_year, title, petitioner, respondent,
     judges, bench_judges, bench_strength, disposal_nature, decision_date, pdf_key,
-    neutral_citation, summary, ai_summary, outcome, acts_cited
+    neutral_citation, summary, ai_summary, outcome, acts_cited,
+    (SELECT t.kind FROM treatments t WHERE t.judgment_id = judgments.id
+     ORDER BY array_position(ARRAY['set_aside', 'recalled', 'overruled', 'partly_set_aside'], t.kind)
+     LIMIT 1) AS good_law
 """
 
 
@@ -134,6 +137,7 @@ def get_judgment(judgment_id: int, conn=Depends(get_conn)):
     row["cited_by"] = conn.execute(CITED_BY_SQL, {"id": judgment_id, "limit": CITED_BY_LIMIT}).fetchall()
     row["cited_by_total"] = row["cited_by"][0]["total"] if row["cited_by"] else 0
     row["cites"] = conn.execute(CITES_SQL, (judgment_id,)).fetchall()
+    row["treated_by"] = conn.execute(TREATED_BY_SQL, (judgment_id,)).fetchall()
     return _present(row)
 
 
@@ -160,6 +164,14 @@ CITES_SQL = f"""
 SELECT {LINK_COLUMNS}
 FROM citations c JOIN judgments a ON a.id = c.cited_id
 WHERE c.citing_id = %s
+ORDER BY a.decision_date DESC NULLS LAST, a.id DESC
+"""
+
+# Later judgments that set this one aside, recalled or overruled it (law_help.goodlaw).
+TREATED_BY_SQL = f"""
+SELECT {LINK_COLUMNS}, t.kind, t.quote
+FROM treatments t JOIN judgments a ON a.id = t.by_id
+WHERE t.judgment_id = %s
 ORDER BY a.decision_date DESC NULLS LAST, a.id DESC
 """
 

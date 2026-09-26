@@ -99,3 +99,13 @@ CREATE INDEX IF NOT EXISTS citations_citing_idx ON citations (citing_id);
 -- Hindi typed in the legacy Kruti Dev font: full_text holds the Unicode conversion, and this
 -- the text as extracted, so `importer hindi` can re-convert it when the converter improves.
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS full_text_original TEXT;
+
+-- Good law check: a judgment a later judgment of this court set aside, recalled or overruled,
+-- with the later judgment's own words. Rebuilt whole by `importer goodlaw` (law_help.goodlaw).
+CREATE TABLE IF NOT EXISTS treatments (
+    judgment_id BIGINT NOT NULL,   -- judgments.id of the order set aside / overruled
+    by_id       BIGINT NOT NULL,   -- judgments.id of the later judgment
+    kind        TEXT   NOT NULL,   -- 'set_aside' | 'partly_set_aside' | 'recalled' | 'overruled'
+    quote       TEXT   NOT NULL,
+    PRIMARY KEY (judgment_id, by_id)
+);
