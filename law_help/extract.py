@@ -21,7 +21,7 @@ stored text whenever the rules improve (bump EXTRACTOR_VERSION when they do).
 import io
 import re
 
-EXTRACTOR_VERSION = 2
+EXTRACTOR_VERSION = 3
 
 # --------------------------------------------------------------------------- PDF text
 
@@ -536,6 +536,163 @@ def _case_key(name: str) -> str:
     return f"{key(a)}|{key(b)}"
 
 
+# --------------------------------------------------------------------------- this court's cases
+
+# Rajasthan HC orders cite the court's own unreported orders by case number:
+#   "Kheta Ram v. State (S.B. Civil Writ Petition No.6863/2014) decided on 12.03.2015".
+_CASE_NO_RE = re.compile(
+    r"\b([SDFL])\.\s?B\.\s*([A-Za-z][A-Za-z .()/&-]{2,80}?)\s*No\.?\s*:?\s*(\d{1,6})\s*/\s*((?:19|20)\d{2})\b")
+
+# How a caption's case kind maps to the eCourts case type codes, first match wins.
+# Some kinds have had more than one code over the years: those list each.
+_CASE_KINDS: list[tuple[str, str]] = [
+    (r"bail cancel", "CRLBC"),
+    (r"suspension of sentence", "SOSA"),
+    (r"bail", "CRLMB"),
+    (r"habeas", "HC"),
+    (r"special (?:appeal|writ)|spl\.? ?appl?\.?|\bs\.?\s?a\.?\s?w\b", "SAW"),
+    (r"criminal contempt", "CRLCP"),
+    (r"contempt", "CCP"),
+    (r"review.*writ|writ.*review", "WRW"),
+    (r"restoration.*writ|writ.*restoration", "WRES"),
+    (r"restoration", "CRES"),
+    (r"writ misc", "WMAP"),
+    (r"criminal writ", "CRLW"),
+    (r"civil writ|writ petition|^c\.?\s?w\.?(?:\s?p\.?)?$", "CW"),
+    (r"(?:criminal|crl?\.?) misc.*(?:petition|\(p\))", "CRLMP"),
+    (r"(?:criminal|crl?\.?) misc.*application", "CRLMA"),
+    (r"criminal revision", "CRLR"),
+    (r"civil revision", "CR"),
+    (r"leave to appeal", "CRLLA"),
+    (r"criminal appeal", "CRLAS|CRLAD|CRLA"),
+    (r"civil misc.*appeal", "CMA"),
+    (r"civil misc.*application", "CMAP"),
+    (r"first appeal", "CFA"),
+    (r"second appeal", "CSA"),
+    (r"company application", "COAP"),
+    (r"company petition", "COP"),
+    (r"arbitration application", "ARBAP"),
+    (r"income tax appeal", "ITA"),
+    (r"sales tax revision", "STR"),
+]
+_CASE_KIND_RES = [(re.compile(p, re.I), code) for p, code in _CASE_KINDS]
+
+# A case number is a citation when it names a decided case, not when it lists a connected
+# matter or says which case counsel appears in.
+_CITED_NEAR_RE = re.compile(r"\b(?:v\.|vs\.?|versus|v/s)\s|decided|judgment|order dated|dated", re.I)
+_NOT_CITED_RE = re.compile(
+    r"(?:appearing|appears|appeared|along with|alongwith|analogous|connected|tagged|restored|"
+    r"restoration of(?: the)?|pleadings and prayers made in|pending)\W*(?:in\W*)?$", re.I)
+
+
+def case_kind(words: str, bench: str) -> str | None:
+    """"Civil Writ Petition" -> "CW"; "Criminal Appeal" at a single bench -> "CRLAS|CRLA"."""
+    words = re.sub(r"\s+", " ", words).strip()
+    for rx, code in _CASE_KIND_RES:
+        if rx.search(words):
+            if code == "CRLAS|CRLAD|CRLA":
+                return "CRLAD|CRLA" if bench == "D" else "CRLAS|CRLA"
+            return code
+    return None
+
+
+def case_refs(body_text: str, own: set[str] | frozenset = frozenset(),
+              cases_cited_: list[dict] | None = None) -> list[str]:
+    """This court's cases the judgment cites, as "TYPE/NO/YEAR/<party words>/<bench>" refs:
+
+        ["CW/6863/2014/kheta/", "CRLAS|CRLA/12/2020//jodhpur", "NC:2024:RJ-JP:2823"]
+
+    TYPE may list more than one case type code. Jaipur and Jodhpur number their cases
+    separately, so the same number can be two cases: the party words (from the case name
+    next to the number) and the bench (when the text names the seat) tell them apart.
+    `own` holds the "TYPE/NO/YEAR" refs of the judgment's own and connected cases, which are
+    skipped. Neutral citations come from `cases_cited_` (already parsed from the same text).
+    """
+    flat = _flatten(body_text)
+    refs: dict[str, str] = {}
+    for m in _CASE_NO_RE.finditer(flat):
+        kind = case_kind(m.group(2), m.group(1))
+        if not kind:
+            continue
+        key = f"{kind}/{int(m.group(3))}/{m.group(4)}"
+        if key in refs or any(o in own for o in _ref_variants(key)):
+            continue
+        before, after = flat[max(0, m.start() - 200):m.start()], flat[m.end():m.end() + 150]
+        if _NOT_CITED_RE.search(before[-60:]):
+            continue
+        if not (_CITED_NEAR_RE.search(before) or _CITED_NEAR_RE.search(after)):
+            continue
+        refs[key] = f"{key}/{' '.join(_party_words(_nearby_name(before, after)))}/{_seat(before, after)}"
+    out = list(refs.values())
+    for c in cases_cited_ or []:
+        for x in c["citations"]:
+            m = re.fullmatch(r"(\d{4}:RJ-(?:JP|JD):\d+)(?:-DB|-FB)?", x)
+            if m and f"NC:{m.group(1)}" not in out:
+                out.append(f"NC:{m.group(1)}")
+    return out
+
+
+def _nearby_name(before: str, after: str) -> str | None:
+    """The "A v. B" case name right after a case number ("(titled as A Vs. B)", ": A Vs. B") or
+    right before it ("A Vs. B (S.B. Civil Writ ...", "A Vs. B : S.B. ...")."""
+    m = _CASE_NAME_RE.search(after[:120])
+    if m and m.start() <= 25:
+        return f"{m.group('a')} {m.group('b')}"
+    last = None
+    for m in _CASE_NAME_RE.finditer(before):
+        last = m
+    if last and len(before) - last.end() <= 40:
+        return f"{last.group('a')} {last.group('b')}"
+    return None
+
+
+# Words that don't tell two cases apart: the State, legal filler, the commonest name parts.
+_COMMON_WORDS = set("""
+    the of and in to for by as at on or v vs versus titled case matter anr ors others another
+    state rajasthan union india govt government through its thr secretary principal chief director
+    officer collector district municipal board corporation ltd pvt limited company m s
+    smt shri sh dr mr mrs ms km kumari late son daughter wife s o d o w o
+    singh kumar lal ram chand devi bai prasad
+    sb db civil criminal writ petition appeal special application misc miscellaneous no bail
+    reported decided dated order judgment supra raj rajashtan hence
+""".split())
+
+
+def _party_words(name: str | None) -> list[str]:
+    if not name:
+        return []
+    words = re.findall(r"[a-z]{3,}", name.lower())
+    return list(dict.fromkeys(w for w in words if w not in _COMMON_WORDS))[:4]
+
+
+def _seat(before: str, after: str) -> str:
+    """"jodhpur" or "jaipur" when the text says which seat decided the cited case."""
+    # the same sentence only: "... No.812/2024. 3. The Principal Seat at Jodhpur ..." is another case
+    brk = r"\.\s+(?=\d+\.\s|[A-Z])"
+    near = f"{re.split(brk, before[-120:])[-1]} {re.split(brk, after[:80])[0]}".lower()
+    if re.search(r"principal seat|at jodhpur|bench at jodhpur", near):
+        return "jodhpur"
+    if re.search(r"jaipur bench|bench at jaipur|at jaipur", near):
+        return "jaipur"
+    return ""
+
+
+def _ref_variants(ref: str) -> list[str]:
+    kinds, number, year = ref.split("/")[:3]
+    return [f"{k}/{number}/{year}" for k in kinds.split("|")]
+
+
+def own_refs(captions: list[str]) -> set[str]:
+    """The judgment's own and connected cases, from its header captions, as "TYPE/NO/YEAR" refs."""
+    own = set()
+    for cap in captions:
+        for m in _CASE_NO_RE.finditer(cap):
+            kind = case_kind(m.group(2), m.group(1))
+            if kind:
+                own.update(_ref_variants(f"{kind}/{int(m.group(3))}/{m.group(4)}"))
+    return own
+
+
 # --------------------------------------------------------------------------- summary
 
 _PURPOSE_RE = re.compile(
@@ -743,6 +900,7 @@ def extract(text: str) -> dict:
         "order_date": head["order_date"],
         "acts_cited": [],
         "cases_cited": [],
+        "case_refs": [],
         "summary": None,
         "outcome": None,
         "key_reasoning": None,
@@ -751,6 +909,7 @@ def extract(text: str) -> dict:
         b = body(text)
         out["acts_cited"] = acts_cited(b)
         out["cases_cited"] = cases_cited(b, citation)
+        out["case_refs"] = case_refs(b, own_refs(head["cases"]), out["cases_cited"])
         out["summary"] = summary(b)
         out["outcome"] = outcome(b)
         out["key_reasoning"] = key_reasoning(b)

@@ -82,3 +82,16 @@ CREATE TABLE IF NOT EXISTS text_archives (
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS ai_summary       JSONB;
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS ai_summary_model TEXT;
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS ai_summarized_at TIMESTAMPTZ;
+
+-- "Cited by": this court's cases a judgment cites (law_help.extract.case_refs), e.g.
+-- 'CW/6863/2014', 'CRLAS|CRLA/12/2020' (either type code), 'NC:2024:RJ-JP:2823'.
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS case_refs TEXT[];
+
+-- Those refs resolved to judgments in this database, rebuilt whole by `importer citations`
+-- (so no foreign keys: it is derived data, and they would block TRUNCATE judgments).
+CREATE TABLE IF NOT EXISTS citations (
+    citing_id BIGINT NOT NULL,   -- judgments.id
+    cited_id  BIGINT NOT NULL,   -- judgments.id
+    PRIMARY KEY (cited_id, citing_id)
+);
+CREATE INDEX IF NOT EXISTS citations_citing_idx ON citations (citing_id);

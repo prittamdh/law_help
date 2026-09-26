@@ -126,7 +126,8 @@ STRUCTURE_SQL = """
 UPDATE judgments SET
     text_language = %(language)s, neutral_citation = %(neutral_citation)s,
     parties = %(parties)s, advocates = %(advocates)s, bench_judges = %(judges)s,
-    acts_cited = %(acts_cited)s, cases_cited = %(cases_cited)s, summary = %(summary)s,
+    acts_cited = %(acts_cited)s, cases_cited = %(cases_cited)s, case_refs = %(case_refs)s,
+    summary = %(summary)s,
     outcome = %(outcome)s, key_reasoning = %(key_reasoning)s,
     extractor_version = %(extractor_version)s, structured_at = now()
 WHERE id = %(id)s
@@ -146,6 +147,7 @@ def _structure_params(judgment_id: int, text: str | None, fields: dict | None = 
         "judges": fields["judges"],
         "acts_cited": Jsonb(fields["acts_cited"]),
         "cases_cited": Jsonb(fields["cases_cited"]),
+        "case_refs": fields["case_refs"],
         "summary": fields["summary"],
         "outcome": fields["outcome"],
         "key_reasoning": fields["key_reasoning"],
@@ -197,6 +199,66 @@ def structure(limit: int | None, redo: bool, workers: int | None = None) -> int:
     return done
 
 
+# Each ref goes to the latest judgment in that case decided before the citing one, so a
+# case's final order is preferred over its interim orders. Jaipur and Jodhpur reuse case
+# numbers, so a wrong link is easy: when the ref has party words, the case's title must
+# contain one; without them, the case number must be one bench's only, or the text must
+# name the seat. Anything else stays unlinked.
+LINK_CASES_SQL = r"""
+INSERT INTO citations (citing_id, cited_id)
+SELECT DISTINCT j.id, pick.id
+FROM judgments j
+CROSS JOIN LATERAL unnest(j.case_refs) AS ref
+CROSS JOIN LATERAL (SELECT split_part(ref, '/', 4) AS words, split_part(ref, '/', 5) AS seat) h
+CROSS JOIN LATERAL (
+    SELECT c.id FROM (
+        SELECT t.id, t.bench, t.decision_date, t.named,
+               min(t.bench) OVER () <> max(t.bench) OVER () AS two_benches
+        FROM (
+            SELECT t.id, t.bench, t.decision_date,
+                   h.words <> '' AND t.title ~* ('\m(' || replace(h.words, ' ', '|') || ')\M') AS named
+            FROM judgments t
+            WHERE t.case_type = ANY(string_to_array(split_part(ref, '/', 1), '|'))
+              AND t.case_number = split_part(ref, '/', 2)::int
+              AND t.case_year = split_part(ref, '/', 3)::int
+              AND (j.decision_date IS NULL OR t.decision_date < j.decision_date)
+              AND (t.case_type, t.case_number, t.case_year)
+                  IS DISTINCT FROM (j.case_type, j.case_number, j.case_year)
+        ) t
+    ) c
+    WHERE c.named
+       OR (h.words = '' AND (h.seat = '' OR c.bench = h.seat) AND (h.seat <> '' OR NOT c.two_benches))
+    ORDER BY c.named DESC, c.decision_date DESC NULLS LAST, c.id DESC
+    LIMIT 1
+) pick
+WHERE j.case_refs <> '{}' AND left(ref, 3) <> 'NC:'
+ON CONFLICT DO NOTHING
+"""
+
+LINK_NEUTRAL_SQL = """
+INSERT INTO citations (citing_id, cited_id)
+SELECT DISTINCT j.id, t.id
+FROM judgments j
+CROSS JOIN LATERAL unnest(j.case_refs) AS ref
+JOIN judgments t ON t.neutral_citation IN (substr(ref, 4), substr(ref, 4) || '-DB', substr(ref, 4) || '-FB')
+WHERE j.case_refs <> '{}' AND left(ref, 3) = 'NC:' AND t.id <> j.id
+ON CONFLICT DO NOTHING
+"""
+
+
+def link_citations(conn=None) -> int:
+    """Rebuild the citations table from every judgment's case_refs; returns the number of links."""
+    if conn is None:
+        with db.connect() as conn:
+            return link_citations(conn)
+    db.init_schema(conn)
+    with conn.transaction():
+        conn.execute("DELETE FROM citations")
+        conn.execute(LINK_CASES_SQL)
+        conn.execute(LINK_NEUTRAL_SQL)
+    return conn.execute("SELECT count(*) AS n FROM citations").fetchone()["n"]
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m law_help.importer")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -225,6 +287,9 @@ def main(argv: list[str] | None = None) -> None:
     st.add_argument("--all", action="store_true", help="redo rows already at the current version")
     st.add_argument("--workers", type=int, help="processes (default: one per CPU)")
 
+    sub.add_parser("citations", help="link each judgment to the earlier judgments of this court it "
+                                     "cites (\"cited by\"); `structure` and `update` run it too")
+
     up = sub.add_parser("update", help="import only what changed in the dataset since the last "
                                        "run, then extract text for the new judgments (run daily)")
     up.add_argument("--year", type=int, action="append", help="repeatable; default all years")
@@ -247,11 +312,14 @@ def main(argv: list[str] | None = None) -> None:
         changed = ", ".join(s["partitions"]) or "none"
         print(f"checked {s['checked']} partitions, changed: {changed}")
         if not args.dry_run:
-            print(f"{s['new']} new judgments, {s['updated']} refreshed, text extracted for {s['text']}; "
+            print(f"{s['new']} new judgments, {s['updated']} refreshed, text extracted for {s['text']}, "
+                  f"{s['citations']} citations linked; "
                   f"latest decision date {s['latest_decision']}")
         if s["stale"]:
             print(f"warning: the dataset was last updated {s['dataset_updated']:%Y-%m-%d}, "
                   f"over {args.stale_days} days ago", file=sys.stderr)
+    elif args.command == "citations":
+        print(f"linked {link_citations()} citations")
     elif args.command == "text":
         from .text import extract_text
 
@@ -260,7 +328,7 @@ def main(argv: list[str] | None = None) -> None:
               f"{s['errors']} unreadable, {s['failed']} could not be downloaded (a re-run retries them)")
     else:
         n = structure(args.limit, args.all, args.workers)
-        print(f"structured {n} judgments")
+        print(f"structured {n} judgments; linked {link_citations()} citations")
 
 
 if __name__ == "__main__":

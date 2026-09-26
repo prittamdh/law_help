@@ -29,6 +29,27 @@ function casesList(cases) {
   )));
 }
 
+// Other judgments of this court, linked: "CW/6863/2014 · Kheta Ram Vs State · 12 Mar 2015".
+function judgmentLinks(rows) {
+  return el("ul", { class: "plain" }, rows.map((r) => el("li", {},
+    el("a", { href: `/judgment?id=${r.id}` }, titleCase(r.title.replace(/^\S+ of /, ""))),
+    el("span", { class: "cites" }, " · ", [caseNumber(r), titleCase(r.bench), formatDate(r.decision_date)]
+      .filter(Boolean).join(" · ")),
+    r.connected ? el("span", { class: "cites" }, ` (and ${r.connected} connected ${r.connected > 1 ? "cases" : "case"})`) : "",
+  )));
+}
+
+function citedBy(j) {
+  if (!j.cited_by?.length) return "";
+  const more = j.cited_by_total - j.cited_by.length;
+  return [
+    el("h2", {}, `Cited by ${j.cited_by_total} later ${j.cited_by_total > 1 ? "judgments" : "judgment"}`),
+    judgmentLinks(j.cited_by),
+    more > 0 ? el("p", { class: "note" }, `Showing the latest ${j.cited_by.length}.`) : "",
+    el("p", { class: "note" }, "Found by matching case numbers cited in later judgments; some citations are missed."),
+  ];
+}
+
 // The model summary when there is one; otherwise the two sentences copied from the judgment.
 function summaryBlock(j) {
   const ai = j.ai_summary;
@@ -93,7 +114,9 @@ async function load() {
       field("CNR", j.cnr),
     ),
     j.acts_cited?.length ? [el("h2", {}, "Acts and sections cited"), actsList(j.acts_cited)] : "",
+    citedBy(j),
     j.cases_cited?.length ? [el("h2", {}, "Cases cited"), casesList(j.cases_cited)] : "",
+    j.cites?.length ? [el("h2", {}, "Earlier judgments of this court it cites"), judgmentLinks(j.cites)] : "",
     j.description && [el("h2", {}, "Opening lines"), el("div", { class: "text" }, j.description)],
     j.full_text
       ? [el("h2", {}, "Full text"), el("div", { class: "text" }, j.full_text)]
