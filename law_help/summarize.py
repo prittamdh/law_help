@@ -15,7 +15,7 @@ Backends, chosen with LAW_HELP_SUMMARIZER:
         LAW_HELP_SUMMARIZER=claude ANTHROPIC_API_KEY=... python -m law_help.summarize
 
 Only judgments with a readable text layer are sent: English, or Hindi in Unicode. Orders
-typed in the legacy Kruti Dev font and scans with no text are skipped.
+typed in the legacy Kruti Dev font (until `importer hindi` converts them) and scans with no text are skipped.
 """
 
 import argparse

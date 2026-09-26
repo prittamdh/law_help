@@ -79,8 +79,7 @@ def _pypdf_pages(data: bytes) -> list[str]:
 
 
 # Many Hindi orders are typed in the legacy Kruti Dev font, so their text layer is
-# Latin gibberish ("izkFkhZx.k@vfHk;qDrx.k"). The header is still English, so parties,
-# advocates and judges parse, but acts, citations and the summary are skipped.
+# Latin gibberish ("izkFkhZx.k@vfHk;qDrx.k"); `readable` converts it to Unicode Hindi.
 _KRUTI_RE = re.compile(r"\b(?:gS|dk|ds|esa|fd;k|vkSj|dh|;g|rFkk|fd)\b")
 
 
@@ -91,9 +90,20 @@ def language(text: str) -> str:
     hits = len(_KRUTI_RE.findall(text))
     if hits >= 5 and hits / max(1, len(text.split())) > 0.02:
         return "hi-krutidev"
-    if re.search(r"[ऀ-ॿ]{20,}", text):
+    # Hindi orders keep an English case header, so judge by the share of Devanagari letters.
+    devanagari = len(re.findall(r"[\u0900-\u097F]", text))
+    if devanagari >= 100 and devanagari >= 0.2 * len(re.findall(r"[A-Za-z\u0900-\u097F]", text)):
         return "hi"
     return "en"
+
+
+def readable(text: str | None) -> tuple[str | None, str | None]:
+    """(text to store and search, the Kruti Dev original or None): legacy-font Hindi is converted."""
+    if text and language(text) == "hi-krutidev":
+        from .krutidev import convert_mixed
+
+        return convert_mixed(text), text
+    return text, None
 
 
 # --------------------------------------------------------------------------- layout
@@ -880,6 +890,46 @@ def headline(case_type: str | None, acts: list[dict] | None, outcome_label: str 
     return " · ".join(parts) if len(parts) > 1 else None
 
 
+# --------------------------------------------------------------------------- Hindi orders
+
+# Hindi orders (mostly bail) end with the operative words; most specific first.
+_HINDI_OUTCOMES: list[tuple[str, re.Pattern]] = [(label, re.compile(rx)) for label, rx in [
+    ("Withdrawn", r"वापि?स\s+(?:लि|ले)"),
+    ("Bail granted", r"जमानत\s+पर\s+(?:तुरंत\s+|तुरन्त\s+)?(?:रिहा|मुक्त)|जमानत[^।]{0,80}स्वीकार"),
+    ("Bail refused", r"जमानत[^।]{0,80}(?:खारिज|अस्वीकार|निरस्त)"),
+    ("Sentence suspended", r"सजा[^।]{0,80}(?:स्थगित|निलंबित)"),
+    ("Allowed", r"स्वीकार\s+(?:किया|किये|की)"),
+    ("Dismissed", r"खारिज|अस्वीकार\s+(?:किया|किये|की)"),
+    ("Disposed of", r"निस्तारित|निस्तारण\s+किया"),
+]]
+
+
+def _hindi_sentences(text: str) -> list[str]:
+    flat = re.sub(r"\s+", " ", _flatten(text))
+    return [re.sub(r"^\d+[.)]\s*", "", p).strip() + "।" for p in re.split(r"\s*।\s*", flat)
+            if len(p.strip()) > 20]
+
+
+def hindi_outcome(body_text: str) -> str | None:
+    """The outcome label for a Hindi order, from its last sentences."""
+    for sent in reversed(_hindi_sentences(body_text)[-6:]):
+        for label, rx in _HINDI_OUTCOMES:
+            if rx.search(sent):
+                return label
+    return None
+
+
+def hindi_summary(body_text: str, max_chars: int = 600) -> str | None:
+    """The first sentence of a Hindi order (what was sought) and the operative one."""
+    sents = _hindi_sentences(body_text)
+    if not sents:
+        return None
+    last = next((s for s in reversed(sents[-6:]) if any(rx.search(s) for _, rx in _HINDI_OUTCOMES)), None)
+    parts = [sents[0]] if last in (None, sents[0]) else [sents[0], last]
+    return " ".join(p if len(p) <= max_chars // len(parts) else
+                    p[:max_chars // len(parts) - 1].rsplit(" ", 1)[0] + "…" for p in parts)
+
+
 # --------------------------------------------------------------------------- all together
 
 
@@ -913,4 +963,8 @@ def extract(text: str) -> dict:
         out["summary"] = summary(b)
         out["outcome"] = outcome(b)
         out["key_reasoning"] = key_reasoning(b)
+    elif lang == "hi":
+        b = body(text)
+        out["summary"] = hindi_summary(b)
+        out["outcome"] = hindi_outcome(b)
     return out

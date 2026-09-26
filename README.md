@@ -48,7 +48,7 @@ ollama pull qwen3:14b
 python -m law_help.summarize --min-chars 8000 --limit 100     # long judgments, newest first
 ```
 
-Settings: `LAW_HELP_OLLAMA_MODEL` (default `qwen3:14b`) and `OLLAMA_HOST` (default `http://localhost:11434`). The Claude API is also supported but paid, so it stays off unless chosen with `LAW_HELP_SUMMARIZER=claude` and an `ANTHROPIC_API_KEY` (model: `LAW_HELP_SUMMARY_MODEL`, default `claude-opus-5`). Hindi orders in the legacy Kruti Dev font and scans without text are skipped. Where no AI summary exists, the site shows the extractive one.
+Settings: `LAW_HELP_OLLAMA_MODEL` (default `qwen3:14b`) and `OLLAMA_HOST` (default `http://localhost:11434`). The Claude API is also supported but paid, so it stays off unless chosen with `LAW_HELP_SUMMARIZER=claude` and an `ANTHROPIC_API_KEY` (model: `LAW_HELP_SUMMARY_MODEL`, default `claude-opus-5`). Scans without text are skipped. Where no AI summary exists, the site shows the extractive one.
 
 ## Structured fields
 
@@ -65,10 +65,17 @@ When `text` fetches a PDF it also derives these columns from the judgment itself
 | `summary` | the court's sentence on what was sought, then its sentence on the outcome |
 | `outcome` | what the court did, from its closing lines: `Bail granted`, `Withdrawn`, `Proceedings quashed`… |
 | `key_reasoning` | long judgments only: three sentences that read most like the court's reasons |
-| `text_language` | `en`, `hi-krutidev` (legacy Hindi font, body fields left empty) or `no-text` (a scan) |
+| `text_language` | `en`, `hi` (Hindi: summary and outcome only), `hi-krutidev` (old-font Hindi not yet converted) or `no-text` (a scan) |
 
 `acts_cited` and `cases_cited` have GIN indexes, so "every judgment citing Section 376 IPC" is
 `acts_cited @> '[{"act": "Indian Penal Code, 1860", "sections": ["376"]}]'`.
+
+About 4% of orders are Hindi typed in the old Kruti Dev font, whose text layer reads
+"izkFkhZ dh vksj ls". `law_help/krutidev.py` converts these to Unicode Hindi ("प्रार्थी की ओर से")
+while leaving the English case header alone, so they are readable and searchable in Hindi.
+New judgments are converted as their text is extracted; for text extracted before, run
+`python -m law_help.importer hindi` (no downloads; safe to run again). The text as extracted
+is kept in `full_text_original`.
 
 The rules are in `law_help/extract.py`. When they change, bump `EXTRACTOR_VERSION` and run
 `structure` to re-derive every row from stored text without downloading anything again.

@@ -259,6 +259,63 @@ def link_citations(conn=None) -> int:
     return conn.execute("SELECT count(*) AS n FROM citations").fetchone()["n"]
 
 
+HINDI_SQL = STRUCTURE_SQL.replace(
+    "UPDATE judgments SET",
+    "UPDATE judgments SET full_text = %(text)s, full_text_original = %(original)s,",
+)
+
+
+def _convert_many(texts: list[str]) -> list[tuple[str, str | None, dict]]:
+    out = []
+    for t in texts:
+        text, original = extract.readable(t)
+        out.append((text, original, extract.extract(text or "")))
+    return out
+
+
+def hindi(workers: int | None = None) -> int:
+    """Convert stored Kruti Dev text to Unicode Hindi and re-derive those rows' fields.
+
+    Takes every Hindi row and re-converts from the stored original, so it is safe to run
+    again after the converter improves.
+    """
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+
+    workers = os.cpu_count() if workers is None else workers
+    done = 0
+    with db.connect() as conn, db.connect() as reader:
+        db.init_schema(conn)
+        cur = reader.cursor(name="hindi")
+        cur.execute("SELECT id, coalesce(full_text_original, full_text) AS text FROM judgments "
+                    "WHERE full_text IS NOT NULL AND (text_language IN ('hi-krutidev', 'hi') "
+                    "OR full_text_original IS NOT NULL) ORDER BY id")
+        pool = ProcessPoolExecutor(workers, mp_context=multiprocessing.get_context("forkserver")) \
+            if workers > 1 else None
+        try:
+            while rows := cur.fetchmany(workers * 50):
+                texts = [r["text"] for r in rows]
+                chunks = [texts[i:i + 50] for i in range(0, len(texts), 50)]
+                results = [x for c in (pool.map(_convert_many, chunks) if pool else map(_convert_many, chunks))
+                           for x in c]
+                params = []
+                for r, (text, original, fields) in zip(rows, results):
+                    p = _structure_params(r["id"], None, fields)
+                    p.update(text=text, original=original)
+                    params.append(p)
+                with conn.cursor() as w:
+                    w.executemany(HINDI_SQL, params)
+                conn.commit()
+                done += len(rows)
+                if done % 5000 < len(rows):
+                    log.info("converted %d Hindi judgments", done)
+        finally:
+            if pool:
+                pool.shutdown()
+        cur.close()
+    return done
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m law_help.importer")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -289,6 +346,10 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("citations", help="link each judgment to the earlier judgments of this court it "
                                      "cites (\"cited by\"); `structure` and `update` run it too")
+
+    hi = sub.add_parser("hindi", help="convert Hindi orders typed in the old Kruti Dev font to "
+                                      "readable, searchable Hindi (no downloads; safe to re-run)")
+    hi.add_argument("--workers", type=int, help="processes (default: one per CPU)")
 
     up = sub.add_parser("update", help="import only what changed in the dataset since the last "
                                        "run, then extract text for the new judgments (run daily)")
@@ -326,6 +387,9 @@ def main(argv: list[str] | None = None) -> None:
         s = extract_text(args.limit, args.year, args.workers, args.streams, args.via, args.retry_errors)
         print(f"extracted text for {s['done']} judgments in {s['seconds']}s ({s['per_second']}/s); "
               f"{s['errors']} unreadable, {s['failed']} could not be downloaded (a re-run retries them)")
+    elif args.command == "hindi":
+        n = hindi(args.workers)
+        print(f"converted {n} Hindi judgments")
     else:
         n = structure(args.limit, args.all, args.workers)
         print(f"structured {n} judgments; linked {link_citations()} citations")

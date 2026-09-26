@@ -95,3 +95,7 @@ CREATE TABLE IF NOT EXISTS citations (
     PRIMARY KEY (cited_id, citing_id)
 );
 CREATE INDEX IF NOT EXISTS citations_citing_idx ON citations (citing_id);
+
+-- Hindi typed in the legacy Kruti Dev font: full_text holds the Unicode conversion, and this
+-- the text as extracted, so `importer hindi` can re-convert it when the converter improves.
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS full_text_original TEXT;
