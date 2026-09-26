@@ -49,7 +49,9 @@ function resultItem(j) {
       judges && ` · ${judges}`,
       el("a", { href: j.pdf_url, target: "_blank", rel: "noopener" }, "PDF"),
     ),
-    j.summary && el("p", { class: "snippet" }, truncate(j.summary, 260)),
+    // The model summary when there is one, else the extractive one.
+    (j.ai_summary?.summary || j.summary) &&
+      el("p", { class: "snippet" }, truncate(j.ai_summary?.summary || j.summary, 260)),
   );
 }
 
