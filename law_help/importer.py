@@ -9,9 +9,10 @@ Layout per year and bench:
 import argparse
 import io
 import logging
+import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -131,10 +132,10 @@ WHERE id = %(id)s
 """
 
 
-def _structure_params(judgment_id: int, text: str | None) -> dict:
+def _structure_params(judgment_id: int, text: str | None, fields: dict | None = None) -> dict:
     from psycopg.types.json import Jsonb
 
-    fields = extract.extract(text or "")
+    fields = fields or extract.extract(text or "")
     return {
         "id": judgment_id,
         "language": fields["language"],
@@ -149,54 +150,47 @@ def _structure_params(judgment_id: int, text: str | None) -> dict:
     }
 
 
-def extract_text(limit: int) -> int:
-    """Download PDFs for judgments that have no text yet, store the text and its structure."""
-    done = 0
-    with httpx.Client(timeout=120) as client, db.connect() as conn:
-        rows = conn.execute(
-            "SELECT id, pdf_key FROM judgments WHERE text_extracted_at IS NULL "
-            "ORDER BY decision_date DESC NULLS LAST LIMIT %s", (limit,),
-        ).fetchall()
-        for row in rows:
-            text = None
-            try:
-                r = client.get(f"{BUCKET_URL}/{row['pdf_key']}")
-                r.raise_for_status()
-                text = extract.pdf_text(r.content)
-            except Exception as exc:  # a bad PDF should not stop the batch
-                log.warning("could not extract %s: %s", row["pdf_key"], exc)
-            conn.execute(
-                "UPDATE judgments SET full_text = %s, text_extracted_at = %s WHERE id = %s",
-                (text, datetime.now(timezone.utc), row["id"]),
-            )
-            conn.execute(STRUCTURE_SQL, _structure_params(row["id"], text))
-            conn.commit()
-            done += 1
-    return done
+def _extract_many(texts: list[str | None]) -> list[dict]:
+    return [extract.extract(t or "") for t in texts]
 
 
-def structure(limit: int | None, redo: bool) -> int:
-    """Re-derive structured fields from stored text; no downloads.
+def structure(limit: int | None, redo: bool, workers: int | None = None) -> int:
+    """Re-derive structured fields from stored text; no downloads, all CPU cores.
 
     By default only rows never structured, or structured by an older extractor version.
     """
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor
+
+    workers = os.cpu_count() if workers is None else workers
     done = 0
-    with db.connect() as conn:
+    with db.connect() as conn, db.connect() as reader:
         db.init_schema(conn)
         where = "full_text IS NOT NULL"
         if not redo:
             where += " AND (extractor_version IS NULL OR extractor_version < %(v)s)"
-        rows = conn.execute(
-            f"SELECT id, full_text FROM judgments WHERE {where} ORDER BY id "
-            + ("LIMIT %(limit)s" if limit else ""),
-            {"v": extract.EXTRACTOR_VERSION, "limit": limit},
-        ).fetchall()
-        for row in rows:
-            conn.execute(STRUCTURE_SQL, _structure_params(row["id"], row["full_text"]))
-            done += 1
-            if done % 500 == 0:
+        # A named cursor streams rows instead of loading every text into memory.
+        cur = reader.cursor(name="structure")
+        cur.execute(f"SELECT id, full_text FROM judgments WHERE {where} ORDER BY id "
+                    + ("LIMIT %(limit)s" if limit else ""),
+                    {"v": extract.EXTRACTOR_VERSION, "limit": limit})
+        pool = ProcessPoolExecutor(workers, mp_context=multiprocessing.get_context("forkserver")) \
+            if workers > 1 else None
+        try:
+            while rows := cur.fetchmany(workers * 50):
+                texts = [r["full_text"] for r in rows]
+                chunks = [texts[i:i + 50] for i in range(0, len(texts), 50)]
+                results = [f for c in (pool.map(_extract_many, chunks) if pool else map(_extract_many, chunks))
+                           for f in c]
+                with conn.cursor() as w:
+                    w.executemany(STRUCTURE_SQL, [_structure_params(r["id"], None, f)
+                                                  for r, f in zip(rows, results)])
                 conn.commit()
-        conn.commit()
+                done += len(rows)
+        finally:
+            if pool:
+                pool.shutdown()
+        cur.close()
     return done
 
 
@@ -209,13 +203,24 @@ def main(argv: list[str] | None = None) -> None:
     meta.add_argument("--bench", choices=sorted(set(BENCHES.values())), action="append",
                       help="repeatable; default both benches")
 
-    text = sub.add_parser("text", help="download PDFs, extract full text and structure")
-    text.add_argument("--limit", type=int, default=100)
+    text = sub.add_parser("text", help="download PDFs, extract full text and structure; "
+                                       "resumable, so just run it again after a stop")
+    text.add_argument("--limit", type=int,
+                      help="only the newest N judgments without text; default every one")
+    text.add_argument("--year", type=int, action="append", help="repeatable; default all years")
+    text.add_argument("--workers", type=int, help="parser processes (default: one per CPU)")
+    text.add_argument("--streams", type=int, default=4, help="partitions worked on at once")
+    text.add_argument("--via", choices=["auto", "archive", "pdf"], default="auto",
+                      help="stream each year's tar archive, fetch PDFs one by one, or pick by "
+                           "how many are left (default)")
+    text.add_argument("--retry-errors", action="store_true",
+                      help="also redo judgments whose PDF could not be parsed before")
 
     st = sub.add_parser("structure", help="re-derive parties, acts, citations and summary "
                                           "from stored text (no downloads)")
     st.add_argument("--limit", type=int)
     st.add_argument("--all", action="store_true", help="redo rows already at the current version")
+    st.add_argument("--workers", type=int, help="processes (default: one per CPU)")
 
     up = sub.add_parser("update", help="import only what changed in the dataset since the last "
                                        "run, then extract text for the new judgments (run daily)")
@@ -245,10 +250,13 @@ def main(argv: list[str] | None = None) -> None:
             print(f"warning: the dataset was last updated {s['dataset_updated']:%Y-%m-%d}, "
                   f"over {args.stale_days} days ago", file=sys.stderr)
     elif args.command == "text":
-        n = extract_text(args.limit)
-        print(f"extracted text for {n} judgments")
+        from .text import extract_text
+
+        s = extract_text(args.limit, args.year, args.workers, args.streams, args.via, args.retry_errors)
+        print(f"extracted text for {s['done']} judgments in {s['seconds']}s ({s['per_second']}/s); "
+              f"{s['errors']} unreadable, {s['failed']} could not be downloaded (a re-run retries them)")
     else:
-        n = structure(args.limit, args.all)
+        n = structure(args.limit, args.all, args.workers)
         print(f"structured {n} judgments")
 
 

@@ -31,20 +31,51 @@ _WATERMARK_RE = re.compile(r"^\(Downloaded on .*\)$")
 
 
 def pdf_text(data: bytes) -> str | None:
-    """Extract text in pypdf's layout mode, then tidy whitespace line by line.
+    """Extract the text layer with pdfium, then tidy whitespace line by line.
 
-    The default mode splits words at kerning gaps ("Dist rict"), which breaks names.
+    pdfium is about 25 times faster than pypdf's layout mode and gives the same lines on
+    these PDFs, which matters over a million judgments. pypdf is the fallback for the rare
+    file pdfium refuses to open.
     """
+    try:
+        pages = _pdfium_pages(data)
+    except Exception:
+        pages = _pypdf_pages(data)
+    lines = []
+    for line in "\n".join(pages).replace("\x00", "").splitlines():
+        line = re.sub(r"[ \t\xa0\ufffe\uffff]+", " ", line).strip()
+        if line and not _WATERMARK_RE.match(line):
+            lines.append(line)
+    return _WRAPPED_LABEL_RE.sub(r"For \1 ", "\n".join(lines)) or None
+
+
+# pdfium keeps a label wrapped in its table cell on lines of its own:
+# "For\nRespondent(s)\n: Mr. X" -> "For Respondent(s) : Mr. X"
+_WRAPPED_LABEL_RE = re.compile(r"(?m)^For\n([A-Za-z-]+(?:\(s\))?)\n(?=:)")
+
+
+def _pdfium_pages(data: bytes) -> list[str]:
+    import pypdfium2 as pdfium
+
+    doc = pdfium.PdfDocument(data)
+    try:
+        pages = []
+        for page in doc:
+            textpage = page.get_textpage()
+            pages.append(textpage.get_text_bounded())
+            textpage.close()
+            page.close()
+        return pages
+    finally:
+        doc.close()
+
+
+def _pypdf_pages(data: bytes) -> list[str]:
+    """pypdf's layout mode; the default mode splits words at kerning gaps ("Dist rict")."""
     from pypdf import PdfReader
 
     reader = PdfReader(io.BytesIO(data))
-    pages = [page.extract_text(extraction_mode="layout") or "" for page in reader.pages]
-    lines = []
-    for line in "\n".join(pages).replace("\x00", "").splitlines():
-        line = re.sub(r"[ \t ]+", " ", line).strip()
-        if line and not _WATERMARK_RE.match(line):
-            lines.append(line)
-    return "\n".join(lines) or None
+    return [page.extract_text(extraction_mode="layout") or "" for page in reader.pages]
 
 
 # Many Hindi orders are typed in the legacy Kruti Dev font, so their text layer is

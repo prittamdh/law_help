@@ -62,6 +62,19 @@ CREATE TABLE IF NOT EXISTS source_partitions (
     imported_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Text extraction (`importer text`): why a PDF gave no text, and how far each archive got.
+ALTER TABLE judgments ADD COLUMN IF NOT EXISTS text_error TEXT;  -- parse failure, or 'PDF not in the dataset'
+CREATE INDEX IF NOT EXISTS judgments_text_pending_idx
+    ON judgments (decision_date DESC NULLS LAST, id) WHERE text_extracted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS text_archives (
+    key         TEXT        PRIMARY KEY,   -- data/tar/.../data.tar or part-*.tar
+    etag        TEXT        NOT NULL,      -- a new ETag means a new file: start over
+    next_offset BIGINT      NOT NULL,      -- byte offset of the first member not yet written
+    done        BOOLEAN     NOT NULL DEFAULT false,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Model-written summary from law_help.summarize: {"summary", "issues", "holding", "outcome"}.
 -- The extractive `summary` above stays as the fallback until this is filled.
 ALTER TABLE judgments ADD COLUMN IF NOT EXISTS ai_summary       JSONB;

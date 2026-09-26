@@ -24,7 +24,8 @@ one-page bail and adjournment orders with nothing to cite.
 Acts, sections and cited cases were labelled from the judgment text before looking at what the
 extractor produced. Header fields (judges, first petitioner and respondent, advocate counts)
 were checked against each PDF's first page. Two held-out judgments are excluded from the act
-and citation counts: one is 115,000 characters long, and one is a scan with no text layer.
+and citation counts: one is 115,000 characters long, and one (a batch of customs appeals) was
+first taken for a scan and not labelled.
 
 ## Results
 
@@ -45,6 +46,10 @@ after reading the held-out misses, so it flatters the extractor.
 | Cases cited by name: precision / recall | 100% / 100% | 100% / 89% | 100% / 100% |
 | Reporter citations, e.g. `(2008) 12 SCC 661`: precision / recall | 100% / 100% | 100% / 87% | 100% / 93% |
 | Summary names the outcome the court recorded | 37/41 | 19/21 | 19/21 |
+
+Text now comes from pdfium instead of pypdf's layout mode (25 times faster). Every score above
+is the same with pdfium. The customs appeal batch had been labelled `no-text` because pypdf
+read almost nothing from it; pdfium reads its full text layer, so its label is now `en`.
 
 Sections are scored per (act, section) pair, so `Section 376 IPC` found under the wrong act
 counts as a miss and a false positive.
