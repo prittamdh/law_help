@@ -157,3 +157,11 @@ def test_bare_act_pages(client):
     assert sec["cited_by"]["total"] == 1
     assert client.get("/api/acts/ipc/sections/9999").status_code == 404
     assert client.get("/api/acts/nope").status_code == 404
+
+
+def test_detail_carries_case_status_links(client):
+    ladu = client.get("/judgments", params={"case_type": "CRLA"}).json()["results"][0]
+    j = client.get(f"/judgments/{ladu['id']}").json()
+    assert j["status_links"]["links"][0]["label"] == "Check case status"
+    assert j["status_links"]["fields"][0] == {"label": "CNR", "value": "RJHC020000011994", "copy": True}
+    assert client.get("/static/case-status.js").status_code == 200

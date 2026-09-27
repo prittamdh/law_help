@@ -152,6 +152,8 @@ Court set aside are not flagged yet.
 
 The act and section filters use the acts each judgment cites (see `importer structure`), so they only find judgments whose text has been extracted. The act box accepts short forms such as `IPC` or `NDPS Act`. The detail page also shows the summary, the neutral citation, advocates, the acts and sections cited (each one links to a search), and the cases cited.
 
+"Check case status" on the judgment page opens the court's own case status search in a new tab: eCourts for the Rajasthan HC (with the bench preselected on the case number search) and the Supreme Court's site for its judgments. Those searches need a captcha, so they can't be linked to the case itself; the box beside the link shows the CNR (or neutral citation) with a Copy button, and the case type, number and year. The links are built in `law_help/status_links.py` and returned as `status_links` by `GET /judgments/{id}`.
+
 ## Bare Acts
 
 `/acts` has the text of twelve acts, section by section: the BNS, BNSS and BSA, the IPC, CrPC and Evidence Act they replaced on 1 July 2024, the Constitution, the CPC (sections and every Order and Rule), and the NI, Motor Vehicles, Contract and IT Acts. A section page shows its text, the same provision in the old or new code, and the judgments that cite it. Section numbers on a judgment page link there.
@@ -196,6 +198,7 @@ Until `text` has run, full-text search only sees the title and the opening lines
 - `law_help/supreme.py`: the Supreme Court dataset's layout and metadata
 - `law_help/text.py`: parallel, resumable PDF download and text extraction
 - `law_help/goodlaw.py`: the good law check (set aside, recalled, overruled)
+- `law_help/status_links.py`: links to the courts' own case status searches
 - `law_help/extract.py`: pulls parties, advocates, judges, acts, cited cases and a summary out of judgment text
 - `eval/`: hand-labelled judgments and the script that scores the extractor against them
 - `law_help/summarize.py`: model-written summaries (summary, issues, holding, outcome) from local Ollama or the Claude API, stored in `ai_summary`

@@ -155,3 +155,12 @@ article.act .equiv { border-left: 3px solid var(--accent-soft); padding: 2px 0 2
 article.act .equiv h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 4px 0; }
 article.act .equiv .note, article.act > p.note { color: var(--muted); font-size: 12px; margin: 4px 0; }
 .summary .equivalents { color: var(--muted); }
+
+/* Check case status (case-status.js) */
+article.judgment .case-status { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 0 0 12px; }
+article.judgment .case-status a.button { display: inline-block; padding: 6px 12px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 13px; text-decoration: none; }
+@media (prefers-color-scheme: dark) { article.judgment .case-status a.button { color: #1a1a18; } }
+article.judgment .case-status a.more { font-size: 13px; }
+article.judgment .case-status dl { margin: 10px 0 0; }
+article.judgment .case-status code { overflow-wrap: anywhere; }
+article.judgment .case-status .note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }

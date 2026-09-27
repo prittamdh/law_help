@@ -233,6 +233,7 @@ async function load() {
     ),
     actionsBar(j),
     savePanel(j),
+    caseStatusBox(j),
     el("dl", {},
       field("Case", caseNumber(j)),
       field("Citation", [j.neutral_citation, j.report_citation].filter(Boolean).join(" · ")),
