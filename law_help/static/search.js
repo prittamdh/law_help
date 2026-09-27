@@ -8,14 +8,26 @@ function stateFromURL() {
   const p = new URLSearchParams(location.search);
   const state = { page: Math.max(1, parseInt(p.get("page"), 10) || 1) };
   for (const f of FIELDS) state[f] = p.get(f) || "";
+  if (state.court === "supreme") state.bench = "";  // an old link may carry both
   return state;
 }
 
 function fillForm(state) {
   for (const f of FIELDS) form.elements[f].value = state[f];
+  showCourtFilters();
+}
+
+// Jaipur and Jodhpur are High Court benches: with the Supreme Court picked, hide the bench
+// filter and show Supreme Court case types as the example.
+function showCourtFilters() {
+  const supreme = form.elements.court.value === "supreme";
+  document.getElementById("bench-filter").hidden = supreme;
+  if (supreme) form.elements.bench.value = "";
+  form.elements.case_type.placeholder = supreme ? "e.g. CRIMINAL APPEAL" : "e.g. CW, CRLMB";
 }
 
 function stateFromForm() {
+  showCourtFilters();
   const state = { page: 1 };
   for (const f of FIELDS) state[f] = form.elements[f].value.trim();
   return state;
