@@ -14,7 +14,7 @@ function joined(nodes, sep = ", ") {
   return nodes.flatMap((n, i) => [i ? sep : "", n]);
 }
 
-// Sections link to the bare act (its text, and the judgments citing it) when we have that act.
+// Sections link to the judgments citing them (and from there the section's text) when we have that act.
 function actsList(acts, bareActs) {
   const slugs = Object.fromEntries((bareActs || []).map((a) => [a.act, a.slug]));
   return el("ul", { class: "plain" }, acts.map((a) => el("li", {},
@@ -22,7 +22,7 @@ function actsList(acts, bareActs) {
     a.sections.length ? [": ", joined(a.sections.map((s) => {
       const label = /^(Order|Rule)\b/.test(s) ? s : `s. ${s}`;
       return slugs[a.act] && !/^Rule\b/.test(s)
-        ? el("a", { href: `/acts?${new URLSearchParams({ act: slugs[a.act], s })}`, title: "Read the section" }, label)
+        ? el("a", { href: sectionJudgmentsHref(slugs[a.act], s), title: "Judgments on this section" }, label)
         : searchLink({ act: a.act, section: s }, label);
     }))] : "",
   )));
@@ -36,12 +36,13 @@ function casesList(cases) {
 }
 
 // Other judgments of this court, linked: "CW/6863/2014 · Kheta Ram Vs State · 12 Mar 2015".
-function judgmentLinks(rows) {
+function judgmentLinks(rows, extra) {
   return el("ul", { class: "plain" }, rows.map((r) => el("li", {},
     el("a", { href: `/judgment?id=${r.id}` }, titleCase(r.title.replace(/^\S+ of /, ""))),
     el("span", { class: "cites" }, " · ", [caseNumber(r), courtLabel(r), formatDate(r.decision_date)]
       .filter(Boolean).join(" · ")),
     r.connected ? el("span", { class: "cites" }, ` (and ${r.connected} connected ${r.connected > 1 ? "cases" : "case"})`) : "",
+    extra ? [" ", extra(r)] : "",
   )));
 }
 
@@ -50,7 +51,8 @@ function citedBy(j) {
   const more = j.cited_by_total - j.cited_by.length;
   return [
     el("h2", {}, `Cited by ${j.cited_by_total} later ${j.cited_by_total > 1 ? "judgments" : "judgment"}`),
-    judgmentLinks(j.cited_by),
+    treatmentSummary(j),
+    judgmentLinks(j.cited_by, treatmentChip),
     more > 0 ? el("p", { class: "note" }, `Showing the latest ${j.cited_by.length}.`) : "",
     el("p", { class: "note" }, "Found by matching the case numbers and Supreme Court citations in later judgments; some citations are missed."),
   ];
@@ -233,6 +235,7 @@ async function load() {
     ),
     actionsBar(j),
     savePanel(j),
+    caseStatusBox(j),
     el("dl", {},
       field("Case", caseNumber(j)),
       field("Citation", [j.neutral_citation, j.report_citation].filter(Boolean).join(" · ")),
@@ -252,10 +255,11 @@ async function load() {
     citedBy(j),
     j.cases_cited?.length ? [el("h2", {}, "Cases cited"), casesList(j.cases_cited)] : "",
     j.cites?.length ? [el("h2", {}, "Earlier judgments it cites"), judgmentLinks(j.cites)] : "",
+    similarPanel(j.id),
     j.description && [el("h2", {}, j.court === "Supreme Court of India" ? "Headnote" : "Opening lines"),
       el("div", { class: "text" }, j.description)],
     j.full_text
-      ? [el("h2", {}, "Full text"), el("div", { class: "text" }, j.full_text)]
+      ? [el("h2", {}, "Full text"), fullText(j)]
       : el("p", { class: "summary" }, "Full text has not been extracted for this judgment yet. The PDF above has it."),
   ));
 }

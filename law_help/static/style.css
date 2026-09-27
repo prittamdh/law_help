@@ -138,6 +138,12 @@ aside.filters h2.gap { margin-top: 18px; }
 ol.results .actions { margin-top: 4px; text-align: right; }
 ol.results .meta .chip { margin-left: 6px; }
 .chip.landmark { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.chip.treatment { margin: 0 0 0 2px; }
+.chip.treatment.followed { background: var(--accent-soft); color: var(--accent); }
+.chip.treatment.distinguished { background: var(--caution-soft); color: var(--caution); }
+.chip.treatment.doubted { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+.chip.treatment.cited { color: var(--muted); }
+article.judgment p.treatment-summary { color: var(--muted); font-size: 13px; margin: -4px 0 6px; }
 
 /* Bare Acts */
 .acts h1, article.act h1 { font-size: 20px; margin: 0 0 6px; }
@@ -155,3 +161,69 @@ article.act .equiv { border-left: 3px solid var(--accent-soft); padding: 2px 0 2
 article.act .equiv h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 4px 0; }
 article.act .equiv .note, article.act > p.note { color: var(--muted); font-size: 12px; margin: 4px 0; }
 .summary .equivalents { color: var(--muted); }
+
+/* Follow (RSS) link above search results */
+p.follow { font-size: 13px; margin: -4px 0 10px; }
+p.follow .tip {
+  display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center; margin-left: 4px;
+  border-radius: 50%; background: var(--chip); color: var(--muted); font-size: 11px; cursor: help;
+}
+
+/* Section pages: judgments citing a section */
+article.act .toc .count { margin-left: 8px; font-size: 13px; white-space: nowrap; }
+article.act .section-filter { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+article.act .section-filter select { padding: 6px 8px; font: inherit; }
+article.act ol.results { margin-top: 6px; }
+
+/* Check case status (case-status.js) */
+article.judgment .case-status { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 0 0 12px; }
+article.judgment .case-status a.button { display: inline-block; padding: 6px 12px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 13px; text-decoration: none; }
+@media (prefers-color-scheme: dark) { article.judgment .case-status a.button { color: #1a1a18; } }
+article.judgment .case-status a.more { font-size: 13px; }
+article.judgment .case-status dl { margin: 10px 0 0; }
+article.judgment .case-status code { overflow-wrap: anywhere; }
+article.judgment .case-status .note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+
+/* Find in judgment, numbered paragraphs */
+article.judgment .find-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 8px; }
+article.judgment .find-bar input {
+  flex: 1; min-width: 160px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--text); font-size: 14px;
+}
+article.judgment .find-bar button { padding: 6px 10px; font-size: 13px; background: var(--panel); color: var(--accent); border: 1px solid var(--line); }
+article.judgment .find-bar button[disabled] { opacity: .4; cursor: default; }
+article.judgment .find-count { color: var(--muted); font-size: 13px; min-width: 5em; }
+article.judgment .text mark { background: #ffe58a; color: #1d1d1b; border-radius: 2px; }
+article.judgment .text mark.current { background: #ff9a3c; outline: 2px solid #ff9a3c; }
+article.judgment .paras .para { position: relative; padding: 2px 0 2px 2.8em; margin-bottom: .6em; border-radius: 4px; }
+article.judgment .paras .para.target { background: var(--accent-soft); }
+article.judgment .para-num { position: absolute; left: 0; width: 2.2em; text-align: right; color: var(--muted); font: 12px/1.9 system-ui, sans-serif; text-decoration: none; }
+article.judgment .para-num:hover { color: var(--accent); text-decoration: underline; }
+article.judgment .copy-cite { margin-left: 8px; font: 12px system-ui, sans-serif; white-space: nowrap; }
+
+/* List of authorities (saved.html) */
+.authorities { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+.authorities .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.authorities .actions button { padding: 6px 12px; font-size: 13px; }
+.authorities .keep-order { font-size: 13px; color: var(--muted); margin-left: auto; }
+.authorities .hint { font-size: 12px; color: var(--muted); margin: 8px 0; }
+.authorities-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; max-height: 360px; overflow: auto; margin: 0; padding: 10px; background: var(--bg); border-radius: 5px; }
+
+/* Topics */
+ol.results.topics .count { color: var(--muted); font-size: 13px; }
+article.topic .crumbs { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+article.topic form.finder input[type=search] {
+  flex: 1; min-width: 180px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); font-size: 15px;
+}
+article.topic .counts { margin: 8px 0 2px; }
+article.topic .note { color: var(--muted); font-size: 12px; margin: 4px 0; }
+article.topic ul.plain .chip { margin-left: 6px; }
+article.topic .equiv { border-left: 3px solid var(--accent-soft); padding: 2px 0 2px 12px; margin: 20px 0 0; }
+article.topic .equiv h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 4px 0; }
+article.topic .equiv li { font-size: 13px; }
+
+/* Similar judgments (similar.js) */
+article.judgment section.similar li { margin-bottom: 6px; }
+article.judgment section.similar .reason { color: var(--muted); font-size: 13px; }
+article.judgment section.similar .note { color: var(--muted); font-size: 12px; margin: 4px 0 0; }

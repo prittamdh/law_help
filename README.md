@@ -113,6 +113,17 @@ Supreme Court judgments are linked too (`law_help/landmark.py`), by neutral cita
 SCC, AIR, JT or SCALE citation, when exactly one Supreme Court judgment fits. Among the Supreme
 Court's own judgments that gives 34,000 links; a sample of 30 name matches was all correct.
 
+Each link is labelled with how the later judgment treats the earlier one (`law_help/treatment.py`,
+rules only): **followed** ("relied upon", "squarely covered", "in view of the law laid down"),
+**distinguished** ("distinguishable", "not applicable to the facts", "has no application"),
+**doubted** ("doubted", "per incuriam", "not good law", "not followed", "unable to agree"), or
+just **cited**. It reads the sentence where the case is cited (by case number, citation, name or
+"(supra)") and the next one when that cites nothing else. What counsel argued or relied on is
+skipped, and a negation turns a phrase round ("cannot be distinguished" is followed). `citations`
+labels as it links; `python -m law_help.importer labels` relabels without relinking. The judgment
+page shows the label as a chip on each "Cited by" item (hover for the sentence) and a count
+such as "Followed 12 · Distinguished 3".
+
 ### Landmarks
 
 `citations` also fills `cited_counts` (how many different later judgments cite each one) and
@@ -146,15 +157,36 @@ aside", "if"), appeals the court dismissed, and any case where more than one ord
 The flag shows on the judgment page and as a red chip in search results. Orders the Supreme
 Court set aside are not flagged yet.
 
+### Similar judgments
+
+The judgment page lists up to ten similar judgments (`GET /judgments/{id}/similar`), each with
+one line on why: "2 cases in common · IPC 302". They are loaded after the rest of the page.
+It is rules only, no embeddings (`law_help/similar.py`). A judgment scores for each case both
+cite (linked in `citations`, or the same citation string in `cases_cited`), with a case cited
+everywhere counting less than a rare one; for each later judgment that cites both; for each
+act and section both cite (CrPC s. 439 and other procedural provisions count half); for the
+same case type; and a little for being recent. Other orders in the same case, and the
+connected cases of one common order, are left out.
+
+Every lookup is capped (30 cited cases, the newest 100 judgments citing each, 100 judgments
+per act-section or citation string through the GIN indexes), so a judgment citing IPC s. 302
+costs about as much as any other. On a synthetic 1.1 million judgments with 470,000 citation
+links it took a median of 23 ms and at most 96 ms.
+
 ## Search UI
 
 `uvicorn` also serves a small search page at `/`. It has a keyword box plus filters for bench, decision dates, judge, act, case type and outcome, and each result opens a detail page with the case details, the extracted text and a link to the PDF. The search lives in the URL, so a search can be bookmarked or shared.
 
 The act and section filters use the acts each judgment cites (see `importer structure`), so they only find judgments whose text has been extracted. The act box accepts short forms such as `IPC` or `NDPS Act`. The detail page also shows the summary, the neutral citation, advocates, the acts and sections cited (each one links to a search), and the cases cited.
 
+"Check case status" on the judgment page opens the court's own case status search in a new tab: eCourts for the Rajasthan HC (with the bench preselected on the case number search) and the Supreme Court's site for its judgments. Those searches need a captcha, so they can't be linked to the case itself; the box beside the link shows the CNR (or neutral citation) with a Copy button, and the case type, number and year. The links are built in `law_help/status_links.py` and returned as `status_links` by `GET /judgments/{id}`.
+The full text is split into paragraphs, numbered as the judgment numbers them ("12.") or, when it doesn't, counted in order. `/judgment?id=1#p12` opens at paragraph 12, and "Copy with cite" copies a paragraph followed by the citation and ", para 12". A find box highlights matches in the text (Enter and Shift+Enter step through them); opened from a search, it starts with the search words (`static/find.js`).
+
 ## Bare Acts
 
-`/acts` has the text of twelve acts, section by section: the BNS, BNSS and BSA, the IPC, CrPC and Evidence Act they replaced on 1 July 2024, the Constitution, the CPC (sections and every Order and Rule), and the NI, Motor Vehicles, Contract and IT Acts. A section page shows its text, the same provision in the old or new code, and the judgments that cite it. Section numbers on a judgment page link there.
+`/acts` has the text of twelve acts, section by section: the BNS, BNSS and BSA, the IPC, CrPC and Evidence Act they replaced on 1 July 2024, the Constitution, the CPC (sections and every Order and Rule), and the NI, Motor Vehicles, Contract and IT Acts. A section page shows its text, the same provision in the old or new code, and the judgments that cite it.
+
+Each section also has a page of every judgment citing it (`/acts?act=ipc&s=420&view=judgments`), with the old and new code together (IPC 420 and BNS 318(4)), most cited first, then newest, with a court filter. The contents of an act show how many judgments cite each section, and section numbers on a judgment page link to this page.
 
 The old-to-new map is also used by search: filtering on IPC s. 302 finds judgments citing BNS s. 103 too, and the other way round (`equivalent=false` turns this off). A search for a section also matches its sub-sections as judgments cite them (BNS 103 finds "103(1)").
 
@@ -165,6 +197,21 @@ Where the data comes from, all free:
 - CrPC to BNSS and Evidence Act to BSA: matched by wording, since the new codes copy most sections. Each new provision is paired with the old section it shares the most text with. Checked against 60 well-known pairs (`tests/test_bareacts.py`); the same method agrees with NCRB's IPC table on 95% of pairs.
 
 The JSON under `law_help/data` is committed, so the site needs no download. To rebuild it from the source files: `python scripts/build_bare_acts.py DIR` then `python scripts/build_section_map.py DIR`.
+
+## Topics
+
+`/topics` lists common kinds of cases (bail, cheque bounce, NDPS, motor accident claims, service
+matters, land revenue and tenancy, matrimonial and maintenance, arbitration, writs, dowry and
+cruelty, murder, rape and POCSO, land acquisition, excise, SC/ST atrocities, corruption). A topic's
+page shows how many judgments it has by bench and year, its most cited and latest judgments, and a
+box to search within it.
+
+Topics are rules, defined as data in `law_help/topics.py`: a judgment is in a topic when it cites
+one of the listed sections (IPC 302 or BNS 103, with their sub-sections) or any section of a listed
+act, has one of the listed case types (CRLMB), or has one of the listed phrases in its title or
+opening lines (the Supreme Court's headnote). Each rule is an indexed condition, so
+`/judgments?topic=bail` filters by a topic like any other filter. Topics overlap, and a judgment
+whose text isn't extracted yet is found only by its case type and opening lines.
 
 ## Keeping it current
 
@@ -182,6 +229,12 @@ The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan upd
 | `GET /api/acts` | The bare acts, with section counts and which code replaced which |
 | `GET /api/acts/{act}` | An act's sections and chapters (`ipc`, `bns`, `crpc`, `bnss`, `evidence`, `bsa`, `cpc`, `constitution`, ...) |
 | `GET /api/acts/{act}/sections/{number}` | A section's text, its old or new counterpart, and the latest judgments citing it |
+| `GET /feed` | The same filters as `/judgments`, as an RSS 2.0 feed of the newest 50 matches by when law_help added them (`added_at`), so a feed reader shows each update's new judgments. The search page links it as "Follow (RSS)" |
+| `GET /api/acts/{act}/sections/{number}/judgments` | Judgments citing a section or its old or new counterpart (IPC 420 with BNS 318(4)), most cited first, then newest: `court`, `page`, `page_size` |
+| `GET /api/acts/{act}/judgment-counts` | How many judgments cite each section of an act, counted the same way: `{"420": 12, ...}` (`court` optional) |
+| `GET /judgments/citations?ids=1,2,3` | Citation lines for up to 500 judgments at once, used by "List of authorities" on a saved folder (Copy, .txt, or a Word .doc with Sr. No., Case, Citation and Relevant para taken from "para 12" in the note) |
+| `GET /api/topics` | The topics, with how many judgments each has (`counts=false` to skip counting). `GET /judgments?topic=bail` filters by one |
+| `GET /api/topics/{slug}` | A topic's rules, counts by bench and year, and its most cited and latest judgments |
 
 Every result carries a `pdf_url` that points at the original judgment PDF, and `good_law`:
 `set_aside`, `partly_set_aside`, `recalled`, `overruled`, or null.
@@ -196,11 +249,14 @@ Until `text` has run, full-text search only sees the title and the opening lines
 - `law_help/supreme.py`: the Supreme Court dataset's layout and metadata
 - `law_help/text.py`: parallel, resumable PDF download and text extraction
 - `law_help/goodlaw.py`: the good law check (set aside, recalled, overruled)
+- `law_help/status_links.py`: links to the courts' own case status searches
+- `law_help/treatment.py`: labels each "Cited by" link followed, distinguished, doubted or cited
 - `law_help/extract.py`: pulls parties, advocates, judges, acts, cited cases and a summary out of judgment text
 - `eval/`: hand-labelled judgments and the script that scores the extractor against them
 - `law_help/summarize.py`: model-written summaries (summary, issues, holding, outcome) from local Ollama or the Claude API, stored in `ai_summary`
 - `law_help/api.py`: the FastAPI search API
 - `law_help/bareacts.py`, `law_help/acts_api.py`: bare acts and the old-to-new section map; `law_help/data/` holds them, built by `scripts/`
+- `law_help/topics.py`, `law_help/topics_api.py`: practice-area topics as rules, and their API
 - `law_help/static/`: the search and judgment pages (plain HTML, CSS and JavaScript, no build step)
 
 ## Tests

@@ -1,4 +1,5 @@
-// Bare Acts: /acts (all acts), /acts?act=bns (contents), /acts?act=bns&s=103 (one section).
+// Bare Acts: /acts (all acts), /acts?act=bns (contents), /acts?act=bns&s=103 (one section),
+// /acts?act=bns&s=103&view=judgments (every judgment citing it, old and new code together).
 
 const content = document.getElementById("content");
 const params = new URLSearchParams(location.search);
@@ -52,6 +53,11 @@ async function showAct(slug, acts) {
   document.title = `${act.act} · law_help`;
   const filter = el("input", { type: "search", placeholder: "Filter by number or words, e.g. bail", "aria-label": "Filter sections" });
   const list = el("div", { class: "toc" });
+  let counts = {};
+  // "12 judgments" beside each section cited, filled in once the counts arrive.
+  const countLink = (s) => counts[s.number]
+    ? el("a", { class: "count", href: sectionJudgmentsHref(slug, s.number), title: "Judgments on this section" },
+      `${counts[s.number].toLocaleString()} ${counts[s.number] > 1 ? "judgments" : "judgment"}`) : "";
   const render = () => {
     const q = filter.value.trim().toLowerCase();
     const groups = [];
@@ -63,11 +69,12 @@ async function showAct(slug, acts) {
     list.replaceChildren(...(groups.length ? groups.flatMap((g) => [
       g.chapter ? el("h3", {}, g.chapter) : "",
       el("ul", { class: "plain" }, g.rows.map((s) => el("li", {},
-        el("a", { href: actHref(slug, s.number) }, sectionLabel(act, s.number)), " ", s.title))),
+        el("a", { href: actHref(slug, s.number) }, sectionLabel(act, s.number)), " ", s.title, countLink(s)))),
     ]) : [el("p", { class: "summary" }, "No section matches.")]));
   };
   filter.addEventListener("input", render);
   render();
+  getJSON(`/api/acts/${encodeURIComponent(slug)}/judgment-counts`).then((c) => { counts = c; render(); }).catch(() => {});
   content.replaceChildren(el("article", { class: "judgment act" },
     el("p", { class: "crumbs" }, el("a", { href: "/acts" }, "Bare Acts")),
     el("h1", {}, act.act),
@@ -102,29 +109,27 @@ function equivalentsBlock(sec) {
     el("p", { class: "note" }, bySource));
 }
 
-function citingList(sec) {
-  const c = sec.cited_by;
-  const searchHref = `/?${new URLSearchParams({ act: sec.act.act, section: sec.number })}`;
-  const other = (sec.equivalents || []).filter((e) => e.ref);
+// "Judgments on this section (N)": the most cited few, old and new code together, and a link to all.
+function citingList(sec, cites) {
+  const other = (cites.equivalents || []).filter((e) => e.ref);
   const withOther = other.length ? ` or ${other[0].short} s. ${other.map((e) => e.ref).join(", ")}` : "";
-  if (!c.total) return [el("h2", {}, "Judgments citing it"),
-    el("p", { class: "summary" }, "No judgment in the collection cites this section by its number.",
-      withOther ? [" ", el("a", { href: searchHref }, `Search judgments citing it${withOther}`)] : "")];
+  const all = sectionJudgmentsHref(sec.act.slug, sec.number);
+  if (!cites.total) return [el("h2", {}, "Judgments on this section"),
+    el("p", { class: "summary" }, `No judgment in the collection cites this section${withOther} by its number.`)];
   return [
-    el("h2", {}, `Cited in ${c.total.toLocaleString()} ${c.total > 1 ? "judgments" : "judgment"}`),
-    el("ul", { class: "plain" }, c.results.map((r) => el("li", {},
-      el("a", { href: `/judgment?id=${r.id}` }, titleCase(r.title.replace(/^\S+ of /, ""))),
-      el("span", { class: "cites" }, " · ", [caseNumber(r), courtLabel(r), formatDate(r.decision_date)].filter(Boolean).join(" · "))))),
-    el("p", {}, el("a", { href: searchHref },
-      c.total > c.results.length ? `See all ${c.total.toLocaleString()}${withOther ? `, and those citing${withOther}` : ""}`
-        : `Search these judgments${withOther ? ` and those citing${withOther}` : ""}`)),
+    el("h2", {}, el("a", { href: all }, `Judgments on this section (${cites.total.toLocaleString()})`)),
+    withOther ? el("p", { class: "summary" }, `Judgments citing it${withOther}, most cited first.`) : "",
+    el("ol", { class: "results" }, cites.results.map(resultItem)),
+    cites.total > cites.results.length
+      ? el("p", {}, el("a", { href: all }, `See all ${cites.total.toLocaleString()} judgments`)) : "",
   ];
 }
 
 async function showSection(slug, number) {
-  let sec;
+  let sec, cites;
+  const path = `/api/acts/${encodeURIComponent(slug)}/sections/${encodeURIComponent(number)}`;
   try {
-    sec = await getJSON(`/api/acts/${encodeURIComponent(slug)}/sections/${encodeURIComponent(number)}`);
+    [sec, cites] = await Promise.all([getJSON(`${path}?limit=0`), getJSON(`${path}/judgments?page_size=5`)]);
   } catch (err) {
     content.replaceChildren(el("p", { class: "error" }, `Could not open ${number}: ${err.message}`),
       el("p", {}, el("a", { href: actHref(slug) }, "See all sections")));
@@ -143,11 +148,70 @@ async function showSection(slug, number) {
     el("div", { class: "text act-text" }, sec.text || "(No text.)"),
     el("p", { class: "note" }, `Text: ${sec.source}.`),
     el("div", { class: "pager" }, nav(sec.previous, true), nav(sec.next, false)),
-    citingList(sec),
+    citingList(sec, cites),
+  ));
+}
+
+// /acts?act=ipc&s=420&view=judgments: every judgment citing IPC 420 or BNS 318(4), most cited first.
+async function showSectionJudgments(slug, number) {
+  const court = params.get("court") || "";
+  const page = Math.max(1, parseInt(params.get("page"), 10) || 1);
+  const PAGE_SIZE = 20;
+  const href = (changes) => {
+    const p = new URLSearchParams({ act: slug, s: number, view: "judgments" });
+    const next = { court, page, ...changes };
+    if (next.court) p.set("court", next.court);
+    if (next.page > 1) p.set("page", next.page);
+    return `/acts?${p}`;
+  };
+  let body;
+  try {
+    body = await getJSON(`/api/acts/${encodeURIComponent(slug)}/sections/${encodeURIComponent(number)}/judgments?${
+      new URLSearchParams({ page, page_size: PAGE_SIZE, ...(court ? { court } : {}) })}`);
+  } catch (err) {
+    content.replaceChildren(el("p", { class: "error" }, `Could not open ${number}: ${err.message}`),
+      el("p", {}, el("a", { href: actHref(slug) }, "See all sections")));
+    return;
+  }
+  const act = body.act;
+  const label = `${act.short} ${sectionLabel(act, body.number)}`;
+  document.title = `Judgments on ${label} · law_help`;
+  const eqs = body.equivalents.filter((e) => e.ref);
+  const select = el("select", { "aria-label": "Court" },
+    [["", "All courts"], ["supreme", "Supreme Court"], ["rajasthan", "Rajasthan High Court"]]
+      .map(([v, t]) => el("option", { value: v, selected: v === court ? "" : null }, t)));
+  select.addEventListener("change", () => { location.href = href({ court: select.value, page: 1 }); });
+  const pages = Math.max(1, Math.ceil(body.total / PAGE_SIZE));
+  const from = (page - 1) * PAGE_SIZE + 1;
+  const to = Math.min(body.total, page * PAGE_SIZE);
+  content.replaceChildren(el("article", { class: "judgment act section-judgments" },
+    el("p", { class: "crumbs" }, el("a", { href: "/acts" }, "Bare Acts"), " › ", el("a", { href: actHref(slug) }, act.act),
+      " › ", el("a", { href: actHref(slug, body.number) }, label)),
+    el("h1", {}, `Judgments on ${label}. ${body.title}`),
+    eqs.length ? el("p", { class: "summary" }, "Including ",
+      eqs.flatMap((e, i) => [i ? ", " : "", e.number ? el("a", { href: actHref(e.act, e.number) }, `${e.short} s. ${e.ref}`)
+        : `${e.short} s. ${e.ref}`]),
+      eqs[0].direction === "new" ? " in the new code." : " in the old code.") : "",
+    el("div", { class: "section-filter" }, select,
+      el("a", { href: actHref(slug, body.number) }, "Read the section"),
+      el("a", { href: `/?${new URLSearchParams({ act: act.act, section: body.number, ...(court ? { court } : {}) })}` },
+        "Search within these")),
+    el("p", { class: "summary" }, body.total
+      ? `${from.toLocaleString()}–${to.toLocaleString()} of ${body.total.toLocaleString()} judgments, most cited first`
+      : ""),
+    el("ol", { class: "results" }, body.results.length ? body.results.map(resultItem)
+      : el("li", { class: "empty" }, court ? "No judgment of this court cites this section." : "No judgment cites this section.")),
+    pages > 1 ? el("div", { class: "pager" },
+      page > 1 ? el("a", { href: href({ page: page - 1 }) }, "Previous") : el("span", {}),
+      el("span", {}, `Page ${page} of ${pages.toLocaleString()}`),
+      page < pages ? el("a", { href: href({ page: page + 1 }) }, "Next") : el("span", {})) : "",
   ));
 }
 
 async function load() {
+  if (params.get("view") === "judgments" && params.get("act") && params.get("s")) {
+    return showSectionJudgments(params.get("act"), params.get("s"));
+  }
   let acts;
   try { acts = await getJSON("/api/acts"); } catch (err) {
     content.replaceChildren(el("p", { class: "error" }, `Could not load the acts: ${err.message}`));

@@ -16,7 +16,10 @@ function folderLink(name, label, count) {
 function savedItem(it, folder) {
   const note = el("textarea", { rows: 2, placeholder: "Notes" });
   note.value = it.note || "";
-  note.addEventListener("change", () => SavedStore.put(it.id, {}, { note: note.value }));
+  note.addEventListener("change", () => {
+    SavedStore.put(it.id, {}, { note: note.value });
+    document.querySelector("#authorities .authorities")?.refresh?.();
+  });
   const remove = el("button", { type: "button", class: "link" }, folder ? "Remove from folder" : "Delete");
   remove.addEventListener("click", () => {
     if (folder) SavedStore.put(it.id, {}, { folders: it.folders.filter((f) => f !== folder) });
@@ -32,6 +35,16 @@ function savedItem(it, folder) {
     note,
     el("div", { class: "actions" }, remove),
   );
+}
+
+// The folder whose list of authorities is open (authorities.js), if any.
+let authoritiesOpen = null;
+
+async function showAuthorities(folder, items) {
+  const slot = document.getElementById("authorities");
+  if (!folder || authoritiesOpen !== folder) { slot.replaceChildren(); return; }
+  const panel = await authoritiesPanel(folder, items);
+  if (authoritiesOpen === folder) slot.replaceChildren(panel);
 }
 
 function render() {
@@ -60,8 +73,12 @@ function render() {
       if (confirm(`Delete the folder "${folder}"? The judgments stay under All saved.`)) { SavedStore.deleteFolder(folder); go(""); }
     });
     actions.push(rename, " · ", del);
+    const list = el("button", { type: "button", class: "link" }, authoritiesOpen === folder ? "Hide list" : "List of authorities");
+    list.addEventListener("click", () => { authoritiesOpen = authoritiesOpen === folder ? null : folder; render(); });
+    actions.push(" · ", list);
   }
   document.getElementById("folder-actions").replaceChildren(...actions);
+  showAuthorities(folder, items);
 
   document.getElementById("saved").replaceChildren(...(items.length
     ? items.map((it) => savedItem(it, folder))

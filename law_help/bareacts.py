@@ -13,7 +13,7 @@ DATA = Path(__file__).parent / "data"
 
 # The order acts are listed in: the criminal codes old and new side by side, then the rest.
 ORDER = ["bns", "ipc", "bnss", "crpc", "bsa", "evidence", "constitution", "cpc", "ni-act",
-         "mv-act", "contract", "it-act"]
+         "mv-act", "contract", "it-act", "ndps", "pocso", "sc-st-act", "arms-act"]
 # Which code replaced which, from 1 July 2024.
 REPLACED = {"ipc": "bns", "crpc": "bnss", "evidence": "bsa"}
 

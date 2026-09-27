@@ -1,7 +1,7 @@
 // Search page: the URL query string holds the search, so results can be shared and Back works.
 
 const form = document.getElementById("search");
-const FIELDS = ["q", "court", "bench", "decided_from", "decided_to", "judge", "act", "section", "case_type", "disposal", "landmark"];
+const FIELDS = ["q", "court", "bench", "decided_from", "decided_to", "judge", "act", "section", "case_type", "disposal", "landmark", "topic"];
 const PAGE_SIZE = 20;
 
 function stateFromURL() {
@@ -49,25 +49,13 @@ function apiParams(state) {
   return p;
 }
 
-function resultItem(j) {
-  const names = j.bench_judges?.length ? j.bench_judges : j.judges;
-  const judges = names?.length ? names.map(titleCase).join(", ") : "";
-  return el("li", {},
-    el("a", { class: "title", href: `/judgment?id=${j.id}` }, j.title),
-    j.headline && el("div", { class: "headline" }, j.headline),
-    el("div", { class: "meta" },
-      goodLawChip(j.good_law),
-      landmarkChip(j),
-      el("span", { class: "chip" }, courtLabel(j)),
-      j.disposal_nature && el("span", { class: "chip outcome" }, titleCase(j.disposal_nature)),
-      j.decision_date ? `Decided ${formatDate(j.decision_date)}` : "Decision date unknown",
-      judges && ` · ${judges}`,
-      el("a", { href: j.pdf_url, target: "_blank", rel: "noopener" }, "PDF"),
-    ),
-    // The model summary when there is one, else the extractive one.
-    (j.ai_summary?.summary || j.summary) &&
-      el("p", { class: "snippet" }, truncate(j.ai_summary?.summary || j.summary, 260)),
-  );
+// "Follow (RSS)": the same search as a feed of the newest matches, so a feed reader shows new judgments.
+function updateFeedLinks(state) {
+  const p = apiParams(state);
+  p.delete("page"); p.delete("page_size");
+  const href = `${location.origin}/feed${p.toString() ? `?${p}` : ""}`;
+  document.getElementById("follow-rss").href = href;
+  document.getElementById("feed-alternate").href = href;
 }
 
 let current = 0;
@@ -77,6 +65,7 @@ async function run(state) {
   const pager = document.getElementById("pager");
   const token = ++current;
   summary.textContent = "Searching…";
+  updateFeedLinks(state);
 
   let body;
   try {
@@ -135,11 +124,21 @@ async function loadFacets() {
   disposal.value = selected;
 }
 
+// Practice-area topics (law_help.topics), without counts so the page stays quick.
+async function loadTopics() {
+  let list;
+  try { list = await getJSON("/api/topics?counts=false"); } catch (_) { return; }
+  const select = form.elements.topic;
+  for (const t of list) select.append(el("option", { value: t.slug }, t.name));
+  select.value = stateFromURL().topic;
+}
+
 form.addEventListener("submit", (e) => { e.preventDefault(); navigate(stateFromForm()); });
 form.elements.court.addEventListener("change", () => navigate(stateFromForm()));
 form.elements.bench.addEventListener("change", () => navigate(stateFromForm()));
 form.elements.disposal.addEventListener("change", () => navigate(stateFromForm()));
 form.elements.landmark.addEventListener("change", () => navigate(stateFromForm()));
+form.elements.topic.addEventListener("change", () => navigate(stateFromForm()));
 document.getElementById("clear").addEventListener("click", () => {
   navigate({ ...Object.fromEntries(FIELDS.map((f) => [f, ""])), q: form.elements.q.value.trim(), page: 1 });
   fillForm(stateFromURL());
@@ -155,4 +154,5 @@ window.addEventListener("popstate", () => { const s = stateFromURL(); fillForm(s
 const initial = stateFromURL();
 fillForm(initial);
 loadFacets();
+loadTopics();
 run(initial);

@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>law_help: Supreme Court and Rajasthan High Court judgments</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="alternate" type="application/rss+xml" title="law_help: new judgments" href="/feed" id="feed-alternate">
 </head>
 <body>
   <header class="site">
     <a class="brand" href="/">law_help</a>
     <span id="corpus">Supreme Court and Rajasthan High Court judgments</span>
-    <span><a href="/acts">Bare Acts</a> · <a href="/saved">Saved</a></span>
+    <span><a href="/acts">Bare Acts</a> · <a href="/topics">Topics</a> · <a href="/saved">Saved</a></span>
   </header>
   <main>
     <form class="search" id="search">
@@ -68,6 +69,10 @@
           </select>
           <p class="hint">Landmarks are the judgments later judgments cite most, most cited first.</p>
 
+          <label for="f-topic">Topic</label>
+          <select id="f-topic" name="topic"><option value="">Any topic</option></select>
+          <p class="hint"><a href="/topics">About topics</a></p>
+
           <div class="actions">
             <button type="button" class="link" id="clear">Clear filters</button>
             <button type="submit">Apply</button>
@@ -75,6 +80,8 @@
         </aside>
         <section aria-live="polite">
           <p class="summary" id="summary"></p>
+          <p class="follow"><a id="follow-rss" href="/feed" title="Paste into any feed reader to get new matching judgments">Follow (RSS)</a>
+            <span class="tip" tabindex="0" title="Paste into any feed reader to get new matching judgments" aria-label="Paste into any feed reader to get new matching judgments">?</span></p>
           <ol class="results" id="results"></ol>
           <div class="pager" id="pager" hidden>
             <button type="button" id="prev">Previous</button>

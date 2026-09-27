@@ -293,18 +293,19 @@ ACT_ALIASES: list[tuple[str, str]] = [
      "Bharatiya Nagarik Suraksha Sanhita, 2023"),
     (r"B\.?\s?N\.?\s?S\.?|Bharatiya Nyaya Sanhita(?:,? 2023)?", "Bharatiya Nyaya Sanhita, 2023"),
     (r"B\.?\s?S\.?\s?A\.?|Bharatiya Sakshya Adhiniyam(?:,? 2023)?", "Bharatiya Sakshya Adhiniyam, 2023"),
-    (r"N\.?\s?D\.?\s?P\.?\s?S\.?(?: Act)?|Narcotic Drugs and Psychotropic Substances Act(?:,? 1985)?",
+    (r"N\.?\s?D\.?\s?P\.?\s?S\.?(?: Act)?(?:,? 1985)?|Narcotic Drugs and Psychotropic Substances Act(?:,? 1985)?",
      "Narcotic Drugs and Psychotropic Substances Act, 1985"),
     (r"N\.?\s?I\.? Act|Negotiable Instruments? Act(?:,? 1881)?", "Negotiable Instruments Act, 1881"),
     (r"(?:Indian )?Evidence Act(?:,? 1872)?", "Indian Evidence Act, 1872"),
     (r"Constitution(?: of India)?", "Constitution of India"),
-    (r"POCSO(?: Act)?|Protection of Children from Sexual Offences Act(?:,? 2012)?",
+    (r"P\.?\s?O\.?\s?C\.?\s?S\.?\s?O\.?(?: Act)?(?:,? 2012)?|Protection of Children from Sexual Offences Act(?:,? 2012)?",
      "Protection of Children from Sexual Offences Act, 2012"),
-    (r"SC/?ST(?: \(Prevention of Atrocities\))? Act|Scheduled Castes and (?:the )?Scheduled Tribes "
+    (r"S\.?\s?C\.?\s?(?:/|-|&|and)?\s?S\.?\s?T\.?(?: \((?:Prevention of Atrocities|P\.?\s?O?\.?\s?A\.?)\))? Act"
+     r"(?:,? 1989)?|(?:Prevention of )?Atrocities Act(?:,? 1989)?|Scheduled Castes and (?:the )?Scheduled Tribes "
      r"\(Prevention of Atrocities\) Act(?:,? 1989)?",
      "Scheduled Castes and Scheduled Tribes (Prevention of Atrocities) Act, 1989"),
     (r"I\.?\s?T\.? Act|Information Technology Act(?:,? 2000)?", "Information Technology Act, 2000"),
-    (r"Arms Act(?:,? 1959)?", "Arms Act, 1959"),
+    (r"(?:Indian )?Arms Act(?:,? 1959)?", "Arms Act, 1959"),
     (r"(?:Rajasthan )?Excise Act(?:,? 1950)?", "Rajasthan Excise Act, 1950"),
     (r"M\.?\s?V\.? Act|Motor Vehicles Act(?:,? 1988)?", "Motor Vehicles Act, 1988"),
     (r"Dowry Prohibition Act(?:,? 1961)?", "Dowry Prohibition Act, 1961"),
@@ -861,7 +862,7 @@ _ACT_SHORT = {
     "Protection of Children from Sexual Offences Act, 2012": "POCSO Act",
     "Scheduled Castes and Scheduled Tribes (Prevention of Atrocities) Act, 1989": "SC/ST Act",
     "Prevention of Corruption Act, 1988": "PC Act", "Information Technology Act, 2000": "IT Act",
-    "Motor Vehicles Act, 1988": "MV Act",
+    "Motor Vehicles Act, 1988": "MV Act", "Arms Act, 1959": "Arms Act",
 }
 # Acts that carry the case into court rather than say what it is about.
 _PROCEDURAL = {"Code of Criminal Procedure, 1973", "Bharatiya Nagarik Suraksha Sanhita, 2023",

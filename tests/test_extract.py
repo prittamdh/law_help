@@ -188,3 +188,17 @@ def test_headline_prefers_the_substantive_act_and_the_text_outcome():
     assert extract.headline("CW", [{"act": "Constitution of India", "sections": ["226"]}], None, "DISMISSED") \
         == "Writ petition · Constitution art. 226 · Dismissed"
     assert extract.headline("XYZ", [], None) is None
+
+
+@pytest.mark.parametrize("cited,canon", [
+    ("NDPS Act, 1985", "Narcotic Drugs and Psychotropic Substances Act, 1985"),
+    ("P.O.C.S.O. Act", "Protection of Children from Sexual Offences Act, 2012"),
+    ("POCSO Act, 2012", "Protection of Children from Sexual Offences Act, 2012"),
+    ("SC-ST Act", "Scheduled Castes and Scheduled Tribes (Prevention of Atrocities) Act, 1989"),
+    ("S.C./S.T. Act", "Scheduled Castes and Scheduled Tribes (Prevention of Atrocities) Act, 1989"),
+    ("SC/ST (PA) Act", "Scheduled Castes and Scheduled Tribes (Prevention of Atrocities) Act, 1989"),
+    ("Atrocities Act", "Scheduled Castes and Scheduled Tribes (Prevention of Atrocities) Act, 1989"),
+    ("Indian Arms Act", "Arms Act, 1959"),
+])
+def test_short_forms_of_the_criminal_acts(cited, canon):
+    assert extract.canonical_act(cited) == canon
