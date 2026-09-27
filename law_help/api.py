@@ -182,14 +182,32 @@ def search_judgments(
     )
     params.update(limit=page_size, offset=(page - 1) * page_size)
 
-    total = conn.execute(f"SELECT count(*) AS n FROM judgments {where_sql}", params).fetchone()["n"]
+    if filters.q:
+        # A common word matches hundreds of thousands of judgments. Counting them all and ranking
+        # each one (ts_rank reads the whole stored text) takes minutes on a small server, so the
+        # count stops at SEARCH_COUNT_CAP and only the SEARCH_RANK_POOL most recent matches are ranked.
+        total = conn.execute(
+            f"SELECT count(*) AS n FROM (SELECT 1 FROM judgments {where_sql} LIMIT {SEARCH_COUNT_CAP + 1}) m",
+            params,
+        ).fetchone()["n"]
+        where_sql = (f"WHERE id IN (SELECT id FROM judgments {where_sql} "
+                     f"ORDER BY decision_date DESC NULLS LAST, id DESC LIMIT {SEARCH_RANK_POOL})")
+    else:
+        total = conn.execute(f"SELECT count(*) AS n FROM judgments {where_sql}", params).fetchone()["n"]
     rows = conn.execute(
         f"SELECT {LIST_COLUMNS} FROM judgments {where_sql} {order_sql} "
         "LIMIT %(limit)s OFFSET %(offset)s",
         params,
     ).fetchall()
-    return {"total": total, "page": page, "page_size": page_size, "equivalents": added,
+    capped = bool(filters.q) and total > SEARCH_COUNT_CAP
+    return {"total": min(total, SEARCH_COUNT_CAP), "total_capped": capped,
+            "ranked": min(total, SEARCH_RANK_POOL) if filters.q else total,
+            "page": page, "page_size": page_size, "equivalents": added,
             "results": [_present(r) for r in rows]}
+
+
+SEARCH_COUNT_CAP = 10_000
+SEARCH_RANK_POOL = 1_000
 
 
 @app.get("/judgments/{judgment_id}")
