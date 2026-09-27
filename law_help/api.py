@@ -18,6 +18,8 @@ from .extract import CASE_KINDS, canonical_act, headline
 from .importer import pdf_url
 from .landmark import landmark_sql
 from .supreme import COURT_NAME as SUPREME_COURT
+from .topics import get as get_topic, topic_sql
+from .topics_api import router as topics_router
 
 app = FastAPI(title="law_help", description="Search Supreme Court and Rajasthan High Court judgments")
 
@@ -26,6 +28,7 @@ COURTS = {"supreme": SUPREME_COURT, "rajasthan": "Rajasthan High Court"}
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(acts_router)
+app.include_router(topics_router)
 
 
 @app.get("/", include_in_schema=False)
@@ -92,6 +95,7 @@ def search_judgments(
     decided_from: date | None = None,
     decided_to: date | None = None,
     landmark: bool = Query(False, description="only judgments cited by many later ones, most cited first"),
+    topic: str | None = Query(None, description="a practice area from /api/topics, e.g. bail or cheque-bounce"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     conn=Depends(get_conn),
@@ -133,6 +137,13 @@ def search_judgments(
     if decided_to:
         where.append("decision_date <= %(decided_to)s")
         params["decided_to"] = decided_to
+    if topic:
+        # law_help.topics: the topic's rules as one condition
+        if not get_topic(topic):
+            raise HTTPException(422, "unknown topic")
+        topic_where, topic_params = topic_sql(get_topic(topic))
+        where.append(topic_where)
+        params.update(topic_params)
 
     if landmark:
         # cited_counts is small, so narrow to it first
