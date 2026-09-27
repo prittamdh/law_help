@@ -20,6 +20,7 @@ from .extract import CASE_KINDS, canonical_act, headline
 from .importer import pdf_url
 from .landmark import landmark_sql
 from .status_links import status_links
+from .similar import router as similar_router
 from .supreme import COURT_NAME as SUPREME_COURT
 from .topics import get as get_topic, topic_sql
 from .topics_api import router as topics_router
@@ -33,6 +34,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(acts_router)
 app.include_router(authorities_router)  # before /judgments/{judgment_id}, which would take "citations"
 app.include_router(topics_router)
+app.include_router(similar_router)
 
 
 @app.get("/", include_in_schema=False)

@@ -222,3 +222,8 @@ article.topic ul.plain .chip { margin-left: 6px; }
 article.topic .equiv { border-left: 3px solid var(--accent-soft); padding: 2px 0 2px 12px; margin: 20px 0 0; }
 article.topic .equiv h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 4px 0; }
 article.topic .equiv li { font-size: 13px; }
+
+/* Similar judgments (similar.js) */
+article.judgment section.similar li { margin-bottom: 6px; }
+article.judgment section.similar .reason { color: var(--muted); font-size: 13px; }
+article.judgment section.similar .note { color: var(--muted); font-size: 12px; margin: 4px 0 0; }

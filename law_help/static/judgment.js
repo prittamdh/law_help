@@ -255,6 +255,7 @@ async function load() {
     citedBy(j),
     j.cases_cited?.length ? [el("h2", {}, "Cases cited"), casesList(j.cases_cited)] : "",
     j.cites?.length ? [el("h2", {}, "Earlier judgments it cites"), judgmentLinks(j.cites)] : "",
+    similarPanel(j.id),
     j.description && [el("h2", {}, j.court === "Supreme Court of India" ? "Headnote" : "Opening lines"),
       el("div", { class: "text" }, j.description)],
     j.full_text
