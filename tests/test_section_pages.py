@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.types.json import Jsonb
 
-from law_help import acts_api, db
+from law_help import counts, db
 from law_help.importer import UPSERT_SQL
 
 IPC, BNS = "Indian Penal Code, 1860", "Bharatiya Nyaya Sanhita, 2023"
@@ -50,7 +50,7 @@ def client():
         cur.execute("INSERT INTO cited_counts SELECT id, CASE cnr WHEN 'SEC3' THEN 5 ELSE 2 END "
                     "FROM judgments WHERE cnr IN ('SEC1', 'SEC3')")
     conn.commit()
-    acts_api._counts_cache.clear()
+    counts.clear(conn)
     from law_help.api import app
     yield TestClient(app)
     mp.undo()

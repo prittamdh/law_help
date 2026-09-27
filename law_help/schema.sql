@@ -147,3 +147,10 @@ BEGIN
     END IF;
 END $$;
 CREATE INDEX IF NOT EXISTS judgments_added_at_idx ON judgments (added_at DESC, id DESC);
+
+-- Slow counts (topics, judgments per section) kept across restarts; law_help.counts
+CREATE TABLE IF NOT EXISTS stored_counts (
+    key         TEXT PRIMARY KEY,
+    value       JSONB NOT NULL,
+    computed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

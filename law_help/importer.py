@@ -20,7 +20,7 @@ from pathlib import Path
 import httpx
 import pyarrow.parquet as pq
 
-from . import db, extract, landmark, supreme, treatment
+from . import counts, db, extract, landmark, supreme, treatment
 from .goodlaw import link_treatments
 from .parse import BENCHES, bench_strength, parse_date, parse_judges, parse_title
 
@@ -382,6 +382,12 @@ def hindi(workers: int | None = None) -> int:
     return done
 
 
+def refresh_counts() -> int:
+    with db.connect() as conn:
+        db.init_schema(conn)
+        return counts.refresh(conn)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m law_help.importer")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -418,6 +424,8 @@ def main(argv: list[str] | None = None) -> None:
                                      "cites (\"cited by\"); `structure` and `update` run it too")
     sub.add_parser("labels", help="label how each judgment treats the ones it cites (followed, "
                                   "distinguished, doubted) without relinking; `citations` runs it too")
+    sub.add_parser("counts", help="recount the topic and section counts the pages show (`update`, "
+                                  "`structure` and `citations` do it too)")
     sub.add_parser("goodlaw", help="flag judgments a later judgment set aside, recalled or overruled "
                                    "(run after `citations`); `structure` and `update` run it too")
 
@@ -458,6 +466,9 @@ def main(argv: list[str] | None = None) -> None:
                   f"over {args.stale_days} days ago", file=sys.stderr)
     elif args.command == "citations":
         print(f"linked {link_citations()} citations")
+        print(f"stored {refresh_counts()} counts")
+    elif args.command == "counts":
+        print(f"stored {refresh_counts()} counts")
     elif args.command == "labels":
         with db.connect() as conn:
             db.init_schema(conn)
@@ -479,6 +490,7 @@ def main(argv: list[str] | None = None) -> None:
         n = structure(args.limit, args.all, args.workers)
         print(f"structured {n} judgments; linked {link_citations()} citations; "
               f"flagged {link_treatments()} judgments set aside, recalled or overruled")
+        print(f"stored {refresh_counts()} counts")
 
 
 if __name__ == "__main__":

@@ -213,6 +213,8 @@ opening lines (the Supreme Court's headnote). Each rule is an indexed condition,
 `/judgments?topic=bail` filters by a topic like any other filter. Topics overlap, and a judgment
 whose text isn't extracted yet is found only by its case type and opening lines.
 
+Topic counts and each act's judgments-per-section counts take minutes on the full collection, so they are stored in the `stored_counts` table and survive a restart. `update` (when something changed), `structure` and `citations` recount them at the end; `python -m law_help.importer counts` does it on its own.
+
 ## Keeping it current
 
 `python -m law_help.importer update` is the one command to schedule daily (for example `0 6 * * *` in cron). It asks the bucket for the ETag of every year's metadata file (about 20 seconds), re-imports only the files that changed since the last run, then fetches PDFs and extracts text for up to `--text-limit` (default 1000) judgments that have none yet, newest first. ETags are stored in the `source_partitions` table. Two runs can't overlap, and a run that dies partway just redoes the unfinished file next time. On an empty database the first run imports every year. `--dry-run` lists what changed without importing.

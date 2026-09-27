@@ -145,3 +145,16 @@ def test_topics_list_and_page(client):
     res = client.get("/topics")
     assert res.status_code == 200 and "topics.js" in res.text
     assert 'href="/topics"' in client.get("/").text
+
+
+def test_counts_are_stored_until_refreshed(client, conn):
+    from law_help import counts
+    counts.clear(conn)
+    assert {t["slug"]: t["total"] for t in client.get("/api/topics").json()}["writs"] == 2
+    # A stale stored value is served as is (no recount after a restart) ...
+    counts.store(conn, "topic:count:writs", 99)
+    assert {t["slug"]: t["total"] for t in client.get("/api/topics").json()}["writs"] == 99
+    # ... until the importer refreshes them.
+    assert counts.refresh(conn) > 0
+    assert {t["slug"]: t["total"] for t in client.get("/api/topics").json()}["writs"] == 2
+    assert conn.execute("SELECT count(*) AS n FROM stored_counts WHERE key LIKE 'sections:%%'").fetchone()["n"] > 0

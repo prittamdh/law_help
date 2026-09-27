@@ -16,7 +16,7 @@ from datetime import date, datetime, timedelta, timezone
 import httpx
 import psycopg
 
-from . import db, supreme
+from . import counts, db, supreme
 from .goodlaw import link_treatments
 from .importer import (BUCKET_URL, CACHE_DIR, COURT_CODE, SC_UPSERT_SQL, SOURCE, UPSERT_SQL, link_citations,
                        to_records)
@@ -136,6 +136,10 @@ def run(years: list[int] | None, text_limit: int, stale_days: int, dry_run: bool
     summary["text"] = extract_text(text_limit)["done"] if text_limit and not dry_run else 0
     summary["citations"] = link_citations() if not dry_run else 0
     summary["treatments"] = link_treatments() if not dry_run else 0
+    if summary["changed"] or summary["text"]:
+        # Topic and section counts are stored (law_help.counts); recount them now so no visitor waits.
+        with db.connect() as conn:
+            summary["counts"] = counts.refresh(conn)
     newest = summary["dataset_updated"]
     summary["stale"] = bool(newest and datetime.now(timezone.utc) - newest > timedelta(days=stale_days))
     return summary
