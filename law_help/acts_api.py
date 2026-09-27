@@ -1,5 +1,8 @@
 """Bare acts API: /acts, /acts/{act}, /acts/{act}/{section}, and the /acts page."""
 
+import time
+from functools import lru_cache
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from psycopg.types.json import Jsonb
@@ -75,3 +78,78 @@ def get_section(slug: str, number: str, conn=Depends(get_conn),
             "equivalents": bareacts.equivalents(slug, sec["number"]),
             "previous": neighbour(idx - 1), "next": neighbour(idx + 1),
             "cited_by": {"total": total, "results": rows}}
+
+
+# Section pages: every judgment citing a section, in the old or the new code, most cited first.
+
+def _where(frags: list[dict], court: str | None, table: str = "") -> tuple[str, dict]:
+    params = {f"f{i}": Jsonb([f]) for i, f in enumerate(frags)}
+    where = "(" + " OR ".join(f"{table}acts_cited @> %(f{i})s" for i in range(len(frags))) + ")"
+    if court:
+        from .api import COURTS
+        where += f" AND {table}court = %(court)s"
+        params["court"] = COURTS[court]
+    return where, params
+
+
+@router.get("/api/acts/{slug}/sections/{number}/judgments")
+def section_judgments(slug: str, number: str, conn=Depends(get_conn),
+                      court: str | None = Query(None, pattern="^(supreme|rajasthan)$"),
+                      page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
+    """Judgments citing a section or its counterpart in the old or new code (IPC 420 with BNS 318(4)),
+    most cited first, then newest."""
+    from .api import LIST_COLUMNS, _present
+    act = _act(slug)
+    sec = bareacts.get_section(slug, number)
+    if sec is None:
+        raise HTTPException(404, "no such section")
+    frags, added = bareacts.search_forms(act["act"], sec["number"])
+    where, params = _where(frags, court)
+    total = conn.execute(f"SELECT count(*) AS n FROM judgments WHERE {where}", params).fetchone()["n"]
+    rows = conn.execute(
+        f"SELECT {LIST_COLUMNS} FROM judgments WHERE {where} "
+        "ORDER BY cited_by_count DESC, decision_date DESC NULLS LAST, id DESC LIMIT %(limit)s OFFSET %(offset)s",
+        {**params, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
+    return {"act": {"slug": slug, "act": act["act"], "short": act["short"], "kind": act["kind"]},
+            "number": sec["number"], "title": sec["title"], "equivalents": added,
+            "total": total, "page": page, "page_size": page_size, "results": [_present(r) for r in rows]}
+
+
+@lru_cache(maxsize=16)
+def _form_targets(slug: str) -> tuple[list[str], list[str], list[str]]:
+    """Three columns: act name, section as judgments cite it, and the section of `slug` it counts
+    toward. Built with search_forms, so a count on the contents page matches its section page."""
+    act = _act(slug)
+    names, cited, targets = [], [], []
+    for s in act["sections"]:
+        for f in bareacts.search_forms(act["act"], s["number"])[0]:
+            names.append(f["act"])
+            cited.append(f["sections"][0])
+            targets.append(s["number"])
+    return names, cited, targets
+
+
+COUNTS_TTL = 600  # seconds; counts change only when the importer runs
+_counts_cache: dict[tuple, tuple[float, dict]] = {}
+
+
+@router.get("/api/acts/{slug}/judgment-counts")
+def section_judgment_counts(slug: str, conn=Depends(get_conn),
+                            court: str | None = Query(None, pattern="^(supreme|rajasthan)$")):
+    """How many judgments cite each section of an act, old and new code together: {"420": 12, ...}.
+    Sections no judgment cites are left out."""
+    _act(slug)
+    key = (slug, court)
+    if (hit := _counts_cache.get(key)) and time.monotonic() - hit[0] < COUNTS_TTL:
+        return hit[1]
+    names, cited, targets = _form_targets(slug)
+    where, params = _where([{"act": a} for a in dict.fromkeys(names)], court, table="j.")
+    rows = conn.execute(
+        "SELECT m.target, count(DISTINCT j.id) AS n "
+        "FROM judgments j, jsonb_array_elements(j.acts_cited) a, jsonb_array_elements_text(a->'sections') s, "
+        "unnest(%(m_act)s::text[], %(m_cited)s::text[], %(m_target)s::text[]) AS m(act, cited, target) "
+        f"WHERE {where} AND a->>'act' = m.act AND s = m.cited GROUP BY 1",
+        {**params, "m_act": names, "m_cited": cited, "m_target": targets}).fetchall()
+    counts = {r["target"]: r["n"] for r in rows}
+    _counts_cache[key] = (time.monotonic(), counts)
+    return counts

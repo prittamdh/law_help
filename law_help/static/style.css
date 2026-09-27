@@ -162,3 +162,9 @@ p.follow .tip {
   display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center; margin-left: 4px;
   border-radius: 50%; background: var(--chip); color: var(--muted); font-size: 11px; cursor: help;
 }
+
+/* Section pages: judgments citing a section */
+article.act .toc .count { margin-left: 8px; font-size: 13px; white-space: nowrap; }
+article.act .section-filter { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+article.act .section-filter select { padding: 6px 8px; font: inherit; }
+article.act ol.results { margin-top: 6px; }
