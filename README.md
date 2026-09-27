@@ -182,6 +182,7 @@ The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan upd
 | `GET /api/acts` | The bare acts, with section counts and which code replaced which |
 | `GET /api/acts/{act}` | An act's sections and chapters (`ipc`, `bns`, `crpc`, `bnss`, `evidence`, `bsa`, `cpc`, `constitution`, ...) |
 | `GET /api/acts/{act}/sections/{number}` | A section's text, its old or new counterpart, and the latest judgments citing it |
+| `GET /judgments/citations?ids=1,2,3` | Citation lines for up to 500 judgments at once, used by "List of authorities" on a saved folder (Copy, .txt, or a Word .doc with Sr. No., Case, Citation and Relevant para taken from "para 12" in the note) |
 
 Every result carries a `pdf_url` that points at the original judgment PDF, and `good_law`:
 `set_aside`, `partly_set_aside`, `recalled`, `overruled`, or null.

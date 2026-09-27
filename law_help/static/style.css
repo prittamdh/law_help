@@ -155,3 +155,11 @@ article.act .equiv { border-left: 3px solid var(--accent-soft); padding: 2px 0 2
 article.act .equiv h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 4px 0; }
 article.act .equiv .note, article.act > p.note { color: var(--muted); font-size: 12px; margin: 4px 0; }
 .summary .equivalents { color: var(--muted); }
+
+/* List of authorities (saved.html) */
+.authorities { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+.authorities .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.authorities .actions button { padding: 6px 12px; font-size: 13px; }
+.authorities .keep-order { font-size: 13px; color: var(--muted); margin-left: auto; }
+.authorities .hint { font-size: 12px; color: var(--muted); margin: 8px 0; }
+.authorities-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; max-height: 360px; overflow: auto; margin: 0; padding: 10px; background: var(--bg); border-radius: 5px; }
