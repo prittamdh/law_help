@@ -1,32 +1,35 @@
 """Topics API: /api/topics, /api/topics/{slug}, and the /topics page (law_help.topics)."""
 
-import time
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from . import db, topics
+from . import counts as stored, db, topics
 
 router = APIRouter()
 
 TOPIC_LIMIT = 10
-# Counting a big topic (every writ petition) takes a while on a million rows, and the
-# counts only change when `update` runs, so they are kept for a few minutes.
-CACHE_SECONDS = 600
-_cache: dict[str, tuple[float, object]] = {}
 
 
 def clear_cache() -> None:
-    _cache.clear()
+    """Forget the stored counts (law_help.counts), e.g. in tests after changing judgments."""
+    with db.connect() as conn:
+        stored.clear(conn)
 
 
-def _cached(key: str, fn):
-    hit = _cache.get(key)
-    if hit and time.monotonic() - hit[0] < CACHE_SECONDS:
-        return hit[1]
-    value = fn()
-    _cache[key] = (time.monotonic(), value)
-    return value
+def count_topic(conn, t: dict) -> int:
+    where, params = topics.topic_sql(t)
+    return conn.execute(f"SELECT count(*) AS n FROM judgments WHERE {where}", params).fetchone()["n"]
+
+
+def topic_counts(conn, t: dict) -> dict:
+    """A topic's total and its counts by court and by year."""
+    where, params = topics.topic_sql(t)
+    by_bench = conn.execute(
+        f"SELECT bench, count(*) AS n FROM judgments WHERE {where} GROUP BY 1 ORDER BY 2 DESC", params).fetchall()
+    by_year = conn.execute(
+        f"SELECT extract(year FROM decision_date)::int AS year, count(*) AS n FROM judgments "
+        f"WHERE {where} AND decision_date IS NOT NULL GROUP BY 1 ORDER BY 1 DESC LIMIT 10", params).fetchall()
+    return {"total": sum(r["n"] for r in by_bench), "by_bench": by_bench, "by_year": by_year}
 
 
 def get_conn():
@@ -50,11 +53,9 @@ def topics_page(topic: str | None = None):
 @router.get("/api/topics")
 def list_topics(counts: bool = Query(True, description="also count each topic's judgments"),
                 conn=Depends(get_conn)):
-    def count(t):
-        where, params = topics.topic_sql(t)
-        return conn.execute(f"SELECT count(*) AS n FROM judgments WHERE {where}", params).fetchone()["n"]
     return [{"slug": t["slug"], "name": t["name"], "blurb": t["blurb"],
-             "total": _cached(f"count:{t['slug']}", lambda: count(t)) if counts else None}
+             "total": stored.cached(conn, f"topic:count:{t['slug']}", lambda: count_topic(conn, t))
+             if counts else None}
             for t in topics.TOPICS]
 
 
@@ -65,13 +66,6 @@ def get_topic(slug: str, limit: int = Query(TOPIC_LIMIT, ge=1, le=50), conn=Depe
     topic = _topic(slug)
     where, params = topics.topic_sql(topic)
 
-    def counts():
-        by_bench = conn.execute(
-            f"SELECT bench, count(*) AS n FROM judgments WHERE {where} GROUP BY 1 ORDER BY 2 DESC", params).fetchall()
-        by_year = conn.execute(
-            f"SELECT extract(year FROM decision_date)::int AS year, count(*) AS n FROM judgments "
-            f"WHERE {where} AND decision_date IS NOT NULL GROUP BY 1 ORDER BY 1 DESC LIMIT 10", params).fetchall()
-        return {"total": sum(r["n"] for r in by_bench), "by_bench": by_bench, "by_year": by_year}
 
     # Most cited: only judgments some later judgment cites (cited_counts is small, so narrow to it first).
     most_cited = conn.execute(
@@ -83,5 +77,5 @@ def get_topic(slug: str, limit: int = Query(TOPIC_LIMIT, ge=1, le=50), conn=Depe
         "ORDER BY decision_date DESC NULLS LAST, id DESC LIMIT %(limit)s",
         {**params, "limit": limit}).fetchall()
     return {"slug": slug, "name": topic["name"], "blurb": topic["blurb"], "rules": topics.describe(topic),
-            **_cached(f"detail:{slug}", counts),
+            **stored.cached(conn, f"topic:detail:{slug}", lambda: topic_counts(conn, topic)),
             "most_cited": [_present(r) for r in most_cited], "latest": [_present(r) for r in latest]}

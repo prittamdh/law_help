@@ -1,13 +1,12 @@
 """Bare acts API: /acts, /acts/{act}, /acts/{act}/{section}, and the /acts page."""
 
-import time
 from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from psycopg.types.json import Jsonb
 
-from . import bareacts, db
+from . import bareacts, counts as stored, db
 from .importer import BUCKET_URL
 
 router = APIRouter()
@@ -129,8 +128,6 @@ def _form_targets(slug: str) -> tuple[list[str], list[str], list[str]]:
     return names, cited, targets
 
 
-COUNTS_TTL = 600  # seconds; counts change only when the importer runs
-_counts_cache: dict[tuple, tuple[float, dict]] = {}
 
 
 @router.get("/api/acts/{slug}/judgment-counts")
@@ -139,9 +136,11 @@ def section_judgment_counts(slug: str, conn=Depends(get_conn),
     """How many judgments cite each section of an act, old and new code together: {"420": 12, ...}.
     Sections no judgment cites are left out."""
     _act(slug)
-    key = (slug, court)
-    if (hit := _counts_cache.get(key)) and time.monotonic() - hit[0] < COUNTS_TTL:
-        return hit[1]
+    return stored.cached(conn, f"sections:{slug}:{court or ''}",
+                         lambda: compute_section_counts(conn, slug, court))
+
+
+def compute_section_counts(conn, slug: str, court: str | None) -> dict:
     names, cited, targets = _form_targets(slug)
     where, params = _where([{"act": a} for a in dict.fromkeys(names)], court, table="j.")
     rows = conn.execute(
@@ -150,6 +149,4 @@ def section_judgment_counts(slug: str, conn=Depends(get_conn),
         "unnest(%(m_act)s::text[], %(m_cited)s::text[], %(m_target)s::text[]) AS m(act, cited, target) "
         f"WHERE {where} AND a->>'act' = m.act AND s = m.cited GROUP BY 1",
         {**params, "m_act": names, "m_cited": cited, "m_target": targets}).fetchall()
-    counts = {r["target"]: r["n"] for r in rows}
-    _counts_cache[key] = (time.monotonic(), counts)
-    return counts
+    return {r["target"]: r["n"] for r in rows}
