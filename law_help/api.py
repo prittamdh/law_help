@@ -4,15 +4,16 @@ Run with: uvicorn law_help.api:app --reload
 """
 
 import re
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 
-from . import bareacts, db
+from . import bareacts, db, feed
 from .acts_api import router as acts_router
 from .extract import CASE_KINDS, canonical_act, headline
 from .importer import pdf_url
@@ -77,8 +78,17 @@ def _present(row: dict) -> dict:
     return row
 
 
-@app.get("/judgments")
-def search_judgments(
+@dataclass
+class Filters:
+    """A search's WHERE clause and params, shared by /judgments and /feed."""
+    where_sql: str
+    params: dict
+    equivalents: list   # the old- or new-code sections also searched (IPC 302 -> BNS 103)
+    q: str | None
+    landmark: bool
+
+
+def judgment_filters(
     q: str | None = Query(None, description="full-text search (web-search syntax)"),
     judge: str | None = Query(None, description="exact judge name, e.g. SAMEER JAIN"),
     act: str | None = Query(None, description="act cited, e.g. IPC or Indian Penal Code, 1860"),
@@ -92,10 +102,7 @@ def search_judgments(
     decided_from: date | None = None,
     decided_to: date | None = None,
     landmark: bool = Query(False, description="only judgments cited by many later ones, most cited first"),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    conn=Depends(get_conn),
-):
+) -> Filters:
     where, params = [], {}
     if q:
         where.append("search @@ websearch_to_tsquery('english', %(q)s)")
@@ -141,10 +148,21 @@ def search_judgments(
         where.append(landmark_sql())
 
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    return Filters(where_sql, params, added, q, landmark)
+
+
+@app.get("/judgments")
+def search_judgments(
+    filters: Filters = Depends(judgment_filters),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    conn=Depends(get_conn),
+):
+    where_sql, params, added = filters.where_sql, dict(filters.params), filters.equivalents
     order_sql = (
         "ORDER BY ts_rank(search, websearch_to_tsquery('english', %(q)s)) DESC, decision_date DESC"
-        if q else "ORDER BY cited_by_count DESC, decision_date DESC NULLS LAST, id DESC" if landmark
-        else "ORDER BY decision_date DESC NULLS LAST, id DESC"
+        if filters.q else "ORDER BY cited_by_count DESC, decision_date DESC NULLS LAST, id DESC"
+        if filters.landmark else "ORDER BY decision_date DESC NULLS LAST, id DESC"
     )
     params.update(limit=page_size, offset=(page - 1) * page_size)
 
@@ -190,16 +208,20 @@ def _party(name: str | None, others: list | None) -> str:
     return f"{name} & Ors." if name and others and len(others) > 1 else name
 
 
-def citation_line(j: dict) -> str:
-    """Ready-to-cite line, e.g. 'Ladu v. State, 2024:RJ-JP:2823 (Raj.) [S.B. Criminal Appeal No. 28/1994,
-    decided on 20.05.2024, Jaipur Bench]'."""
+def case_name(j: dict) -> str:
+    """'Ladu v. State', from the parties, else from the title."""
     parties = j.get("parties") or {}
     pet = _party(j.get("petitioner"), parties.get("petitioners"))
     res = _party(j.get("respondent"), parties.get("respondents"))
     if pet and res:
-        name = f"{pet} v. {res}"
-    else:
-        name = re.sub(r"\s+Vs\.?\s+", " v. ", re.sub(r"^\S+ of ", "", j.get("title") or ""), flags=re.I)
+        return f"{pet} v. {res}"
+    return re.sub(r"\s+Vs\.?\s+", " v. ", re.sub(r"^\S+ of ", "", j.get("title") or ""), flags=re.I)
+
+
+def citation_line(j: dict) -> str:
+    """Ready-to-cite line, e.g. 'Ladu v. State, 2024:RJ-JP:2823 (Raj.) [S.B. Criminal Appeal No. 28/1994,
+    decided on 20.05.2024, Jaipur Bench]'."""
+    name = case_name(j)
     if j.get("court") == SUPREME_COURT:
         # "Vijay Singh v. The State of Bihar, 2024 INSC 735 : [2024] 10 S.C.R. 108 [Criminal Appeal
         # No. 1031 of 2015, decided on 25.09.2024]"
@@ -283,3 +305,29 @@ def stats(conn=Depends(get_conn)):
             "SELECT disposal_nature, count(*) AS n FROM judgments "
             "GROUP BY 1 ORDER BY 2 DESC LIMIT 20").fetchall(),
     }
+
+
+@app.get("/feed", response_class=Response,
+         responses={200: {"content": {"application/rss+xml": {}}, "description": "RSS 2.0 feed"}})
+def search_feed(request: Request, filters: Filters = Depends(judgment_filters), conn=Depends(get_conn)):
+    """The same search as /judgments as an RSS feed: the newest 50 matches by when law_help added
+    them, so a feed reader picks up each update's new judgments."""
+    rows = conn.execute(
+        f"SELECT {LIST_COLUMNS}, parties, added_at FROM judgments {filters.where_sql} "
+        f"ORDER BY added_at DESC, decision_date DESC NULLS LAST, id DESC LIMIT {feed.FEED_SIZE}",
+        filters.params,
+    ).fetchall()
+    items = []
+    for j in map(_present, rows):
+        name = case_name(j) or j["title"]
+        summary = (j["ai_summary"] or {}).get("summary") or j["summary"]
+        items.append({
+            "title": f"{name}: {j['headline']}" if j["headline"] else name,
+            "link": str(request.url_for("judgment_page").include_query_params(id=j["id"])),
+            "description": "\n\n".join(filter(None, [citation_line(j), summary])),
+            "guid": j["id"],
+            "added": j["added_at"],
+        })
+    search = str(request.url_for("search_page")) + (f"?{request.url.query}" if request.url.query else "")
+    body = feed.render(feed.feed_title(dict(request.query_params)), search, str(request.url), items)
+    return Response(body, media_type="application/rss+xml; charset=utf-8")

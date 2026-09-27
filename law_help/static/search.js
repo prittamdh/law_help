@@ -58,6 +58,15 @@ function resultItem(j) {
   );
 }
 
+// "Follow (RSS)": the same search as a feed of the newest matches, so a feed reader shows new judgments.
+function updateFeedLinks(state) {
+  const p = apiParams(state);
+  p.delete("page"); p.delete("page_size");
+  const href = `${location.origin}/feed${p.toString() ? `?${p}` : ""}`;
+  document.getElementById("follow-rss").href = href;
+  document.getElementById("feed-alternate").href = href;
+}
+
 let current = 0;
 async function run(state) {
   const summary = document.getElementById("summary");
@@ -65,6 +74,7 @@ async function run(state) {
   const pager = document.getElementById("pager");
   const token = ++current;
   summary.textContent = "Searching…";
+  updateFeedLinks(state);
 
   let body;
   try {
