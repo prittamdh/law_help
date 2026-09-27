@@ -36,12 +36,13 @@ function casesList(cases) {
 }
 
 // Other judgments of this court, linked: "CW/6863/2014 · Kheta Ram Vs State · 12 Mar 2015".
-function judgmentLinks(rows) {
+function judgmentLinks(rows, extra) {
   return el("ul", { class: "plain" }, rows.map((r) => el("li", {},
     el("a", { href: `/judgment?id=${r.id}` }, titleCase(r.title.replace(/^\S+ of /, ""))),
     el("span", { class: "cites" }, " · ", [caseNumber(r), courtLabel(r), formatDate(r.decision_date)]
       .filter(Boolean).join(" · ")),
     r.connected ? el("span", { class: "cites" }, ` (and ${r.connected} connected ${r.connected > 1 ? "cases" : "case"})`) : "",
+    extra ? [" ", extra(r)] : "",
   )));
 }
 
@@ -50,7 +51,8 @@ function citedBy(j) {
   const more = j.cited_by_total - j.cited_by.length;
   return [
     el("h2", {}, `Cited by ${j.cited_by_total} later ${j.cited_by_total > 1 ? "judgments" : "judgment"}`),
-    judgmentLinks(j.cited_by),
+    treatmentSummary(j),
+    judgmentLinks(j.cited_by, treatmentChip),
     more > 0 ? el("p", { class: "note" }, `Showing the latest ${j.cited_by.length}.`) : "",
     el("p", { class: "note" }, "Found by matching the case numbers and Supreme Court citations in later judgments; some citations are missed."),
   ];

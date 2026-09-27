@@ -138,6 +138,12 @@ aside.filters h2.gap { margin-top: 18px; }
 ol.results .actions { margin-top: 4px; text-align: right; }
 ol.results .meta .chip { margin-left: 6px; }
 .chip.landmark { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.chip.treatment { margin: 0 0 0 2px; }
+.chip.treatment.followed { background: var(--accent-soft); color: var(--accent); }
+.chip.treatment.distinguished { background: var(--caution-soft); color: var(--caution); }
+.chip.treatment.doubted { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+.chip.treatment.cited { color: var(--muted); }
+article.judgment p.treatment-summary { color: var(--muted); font-size: 13px; margin: -4px 0 6px; }
 
 /* Bare Acts */
 .acts h1, article.act h1 { font-size: 20px; margin: 0 0 6px; }
