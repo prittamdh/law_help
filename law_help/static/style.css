@@ -155,3 +155,10 @@ article.act .equiv { border-left: 3px solid var(--accent-soft); padding: 2px 0 2
 article.act .equiv h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 4px 0; }
 article.act .equiv .note, article.act > p.note { color: var(--muted); font-size: 12px; margin: 4px 0; }
 .summary .equivalents { color: var(--muted); }
+
+/* Follow (RSS) link above search results */
+p.follow { font-size: 13px; margin: -4px 0 10px; }
+p.follow .tip {
+  display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center; margin-left: 4px;
+  border-radius: 50%; background: var(--chip); color: var(--muted); font-size: 11px; cursor: help;
+}

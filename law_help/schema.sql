@@ -127,3 +127,19 @@ CREATE TABLE IF NOT EXISTS landmark_thresholds (
     court TEXT    PRIMARY KEY,
     n     INTEGER NOT NULL
 );
+
+-- Search feeds (/feed): when a judgment first reached law_help, so a daily update's new judgments
+-- come first. Not imported_at, which every re-import of a partition resets. Rows that predate
+-- the column are backfilled once from decision_date; new rows get now() and upserts leave it alone.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'judgments' AND column_name = 'added_at'
+                     AND table_schema = current_schema()) THEN
+        ALTER TABLE judgments ADD COLUMN added_at TIMESTAMPTZ;
+        UPDATE judgments SET added_at = coalesce(decision_date::timestamptz, imported_at);
+        ALTER TABLE judgments ALTER COLUMN added_at SET DEFAULT now();
+        ALTER TABLE judgments ALTER COLUMN added_at SET NOT NULL;
+    END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS judgments_added_at_idx ON judgments (added_at DESC, id DESC);

@@ -182,6 +182,7 @@ The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan upd
 | `GET /api/acts` | The bare acts, with section counts and which code replaced which |
 | `GET /api/acts/{act}` | An act's sections and chapters (`ipc`, `bns`, `crpc`, `bnss`, `evidence`, `bsa`, `cpc`, `constitution`, ...) |
 | `GET /api/acts/{act}/sections/{number}` | A section's text, its old or new counterpart, and the latest judgments citing it |
+| `GET /feed` | The same filters as `/judgments`, as an RSS 2.0 feed of the newest 50 matches by when law_help added them (`added_at`), so a feed reader shows each update's new judgments. The search page links it as "Follow (RSS)" |
 
 Every result carries a `pdf_url` that points at the original judgment PDF, and `good_law`:
 `set_aside`, `partly_set_aside`, `recalled`, `overruled`, or null.
