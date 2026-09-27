@@ -155,3 +155,20 @@ article.act .equiv { border-left: 3px solid var(--accent-soft); padding: 2px 0 2
 article.act .equiv h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 4px 0; }
 article.act .equiv .note, article.act > p.note { color: var(--muted); font-size: 12px; margin: 4px 0; }
 .summary .equivalents { color: var(--muted); }
+
+/* Find in judgment, numbered paragraphs */
+article.judgment .find-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 8px; }
+article.judgment .find-bar input {
+  flex: 1; min-width: 160px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--text); font-size: 14px;
+}
+article.judgment .find-bar button { padding: 6px 10px; font-size: 13px; background: var(--panel); color: var(--accent); border: 1px solid var(--line); }
+article.judgment .find-bar button[disabled] { opacity: .4; cursor: default; }
+article.judgment .find-count { color: var(--muted); font-size: 13px; min-width: 5em; }
+article.judgment .text mark { background: #ffe58a; color: #1d1d1b; border-radius: 2px; }
+article.judgment .text mark.current { background: #ff9a3c; outline: 2px solid #ff9a3c; }
+article.judgment .paras .para { position: relative; padding: 2px 0 2px 2.8em; margin-bottom: .6em; border-radius: 4px; }
+article.judgment .paras .para.target { background: var(--accent-soft); }
+article.judgment .para-num { position: absolute; left: 0; width: 2.2em; text-align: right; color: var(--muted); font: 12px/1.9 system-ui, sans-serif; text-decoration: none; }
+article.judgment .para-num:hover { color: var(--accent); text-decoration: underline; }
+article.judgment .copy-cite { margin-left: 8px; font: 12px system-ui, sans-serif; white-space: nowrap; }

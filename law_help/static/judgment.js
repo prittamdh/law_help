@@ -255,7 +255,7 @@ async function load() {
     j.description && [el("h2", {}, j.court === "Supreme Court of India" ? "Headnote" : "Opening lines"),
       el("div", { class: "text" }, j.description)],
     j.full_text
-      ? [el("h2", {}, "Full text"), el("div", { class: "text" }, j.full_text)]
+      ? [el("h2", {}, "Full text"), fullText(j)]
       : el("p", { class: "summary" }, "Full text has not been extracted for this judgment yet. The PDF above has it."),
   ));
 }

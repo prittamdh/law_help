@@ -152,6 +152,8 @@ Court set aside are not flagged yet.
 
 The act and section filters use the acts each judgment cites (see `importer structure`), so they only find judgments whose text has been extracted. The act box accepts short forms such as `IPC` or `NDPS Act`. The detail page also shows the summary, the neutral citation, advocates, the acts and sections cited (each one links to a search), and the cases cited.
 
+The full text is split into paragraphs, numbered as the judgment numbers them ("12.") or, when it doesn't, counted in order. `/judgment?id=1#p12` opens at paragraph 12, and "Copy with cite" copies a paragraph followed by the citation and ", para 12". A find box highlights matches in the text (Enter and Shift+Enter step through them); opened from a search, it starts with the search words (`static/find.js`).
+
 ## Bare Acts
 
 `/acts` has the text of twelve acts, section by section: the BNS, BNSS and BSA, the IPC, CrPC and Evidence Act they replaced on 1 July 2024, the Constitution, the CPC (sections and every Order and Rule), and the NI, Motor Vehicles, Contract and IT Acts. A section page shows its text, the same provision in the old or new code, and the judgments that cite it. Section numbers on a judgment page link there.
