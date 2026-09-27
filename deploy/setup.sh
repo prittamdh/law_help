@@ -15,10 +15,10 @@ if [ ! -f .env ]; then
   chmod 600 .env
 fi
 
-docker compose -p law_help up -d --build
+docker compose -p law_help up -d --build </dev/null
 echo "Waiting for the database..."
-until docker compose -p law_help exec -T db pg_isready -U law -d law_help >/dev/null 2>&1; do sleep 2; done
-docker compose -p law_help exec -T app python -c "from law_help import db; db.init_schema(db.connect())"
+until docker compose -p law_help exec -T db pg_isready -U law -d law_help </dev/null >/dev/null 2>&1; do sleep 2; done
+docker compose -p law_help exec -T app python -c "from law_help import db; db.init_schema(db.connect())" </dev/null
 
 # Add a site block to Caddy's config (backed up first), validate, reload.
 SRC=$(docker inspect "$CADDY" -f '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}')
