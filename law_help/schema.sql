@@ -95,6 +95,10 @@ CREATE TABLE IF NOT EXISTS citations (
     PRIMARY KEY (cited_id, citing_id)
 );
 CREATE INDEX IF NOT EXISTS citations_citing_idx ON citations (citing_id);
+-- How the citing judgment treats the one it cites (law_help.treatment), labelled with the links:
+-- 'followed' | 'distinguished' | 'doubted' | 'cited', and the citing judgment's own words.
+ALTER TABLE citations ADD COLUMN IF NOT EXISTS treatment       TEXT NOT NULL DEFAULT 'cited';
+ALTER TABLE citations ADD COLUMN IF NOT EXISTS treatment_quote TEXT;
 
 -- Hindi typed in the legacy Kruti Dev font: full_text holds the Unicode conversion, and this
 -- the text as extracted, so `importer hindi` can re-convert it when the converter improves.

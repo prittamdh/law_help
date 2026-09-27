@@ -20,7 +20,7 @@ from pathlib import Path
 import httpx
 import pyarrow.parquet as pq
 
-from . import db, extract, landmark, supreme
+from . import db, extract, landmark, supreme, treatment
 from .goodlaw import link_treatments
 from .parse import BENCHES, bench_strength, parse_date, parse_judges, parse_title
 
@@ -321,6 +321,7 @@ def link_citations(conn=None) -> int:
         conn.execute(LINK_NEUTRAL_SQL)
         landmark.link_supreme(conn)
         landmark.count_citations(conn)
+        treatment.label_citations(conn)
     return conn.execute("SELECT count(*) AS n FROM citations").fetchone()["n"]
 
 
@@ -415,6 +416,8 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("citations", help="link each judgment to the earlier judgments of this court it "
                                      "cites (\"cited by\"); `structure` and `update` run it too")
+    sub.add_parser("labels", help="label how each judgment treats the ones it cites (followed, "
+                                  "distinguished, doubted) without relinking; `citations` runs it too")
     sub.add_parser("goodlaw", help="flag judgments a later judgment set aside, recalled or overruled "
                                    "(run after `citations`); `structure` and `update` run it too")
 
@@ -455,6 +458,12 @@ def main(argv: list[str] | None = None) -> None:
                   f"over {args.stale_days} days ago", file=sys.stderr)
     elif args.command == "citations":
         print(f"linked {link_citations()} citations")
+    elif args.command == "labels":
+        with db.connect() as conn:
+            db.init_schema(conn)
+            with conn.transaction():
+                n = treatment.label_citations(conn)
+        print(f"labelled {n} citations as followed, distinguished or doubted")
     elif args.command == "goodlaw":
         print(f"flagged {link_treatments()} judgments set aside, recalled or overruled")
     elif args.command == "text":

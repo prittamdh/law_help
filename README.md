@@ -113,6 +113,17 @@ Supreme Court judgments are linked too (`law_help/landmark.py`), by neutral cita
 SCC, AIR, JT or SCALE citation, when exactly one Supreme Court judgment fits. Among the Supreme
 Court's own judgments that gives 34,000 links; a sample of 30 name matches was all correct.
 
+Each link is labelled with how the later judgment treats the earlier one (`law_help/treatment.py`,
+rules only): **followed** ("relied upon", "squarely covered", "in view of the law laid down"),
+**distinguished** ("distinguishable", "not applicable to the facts", "has no application"),
+**doubted** ("doubted", "per incuriam", "not good law", "not followed", "unable to agree"), or
+just **cited**. It reads the sentence where the case is cited (by case number, citation, name or
+"(supra)") and the next one when that cites nothing else. What counsel argued or relied on is
+skipped, and a negation turns a phrase round ("cannot be distinguished" is followed). `citations`
+labels as it links; `python -m law_help.importer labels` relabels without relinking. The judgment
+page shows the label as a chip on each "Cited by" item (hover for the sentence) and a count
+such as "Followed 12 · Distinguished 3".
+
 ### Landmarks
 
 `citations` also fills `cited_counts` (how many different later judgments cite each one) and
@@ -196,6 +207,7 @@ Until `text` has run, full-text search only sees the title and the opening lines
 - `law_help/supreme.py`: the Supreme Court dataset's layout and metadata
 - `law_help/text.py`: parallel, resumable PDF download and text extraction
 - `law_help/goodlaw.py`: the good law check (set aside, recalled, overruled)
+- `law_help/treatment.py`: labels each "Cited by" link followed, distinguished, doubted or cited
 - `law_help/extract.py`: pulls parties, advocates, judges, acts, cited cases and a summary out of judgment text
 - `eval/`: hand-labelled judgments and the script that scores the extractor against them
 - `law_help/summarize.py`: model-written summaries (summary, issues, holding, outcome) from local Ollama or the Claude API, stored in `ai_summary`
