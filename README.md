@@ -154,7 +154,9 @@ The act and section filters use the acts each judgment cites (see `importer stru
 
 ## Bare Acts
 
-`/acts` has the text of twelve acts, section by section: the BNS, BNSS and BSA, the IPC, CrPC and Evidence Act they replaced on 1 July 2024, the Constitution, the CPC (sections and every Order and Rule), and the NI, Motor Vehicles, Contract and IT Acts. A section page shows its text, the same provision in the old or new code, and the judgments that cite it. Section numbers on a judgment page link there.
+`/acts` has the text of twelve acts, section by section: the BNS, BNSS and BSA, the IPC, CrPC and Evidence Act they replaced on 1 July 2024, the Constitution, the CPC (sections and every Order and Rule), and the NI, Motor Vehicles, Contract and IT Acts. A section page shows its text, the same provision in the old or new code, and the judgments that cite it.
+
+Each section also has a page of every judgment citing it (`/acts?act=ipc&s=420&view=judgments`), with the old and new code together (IPC 420 and BNS 318(4)), most cited first, then newest, with a court filter. The contents of an act show how many judgments cite each section, and section numbers on a judgment page link to this page.
 
 The old-to-new map is also used by search: filtering on IPC s. 302 finds judgments citing BNS s. 103 too, and the other way round (`equivalent=false` turns this off). A search for a section also matches its sub-sections as judgments cite them (BNS 103 finds "103(1)").
 
@@ -182,6 +184,8 @@ The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan upd
 | `GET /api/acts` | The bare acts, with section counts and which code replaced which |
 | `GET /api/acts/{act}` | An act's sections and chapters (`ipc`, `bns`, `crpc`, `bnss`, `evidence`, `bsa`, `cpc`, `constitution`, ...) |
 | `GET /api/acts/{act}/sections/{number}` | A section's text, its old or new counterpart, and the latest judgments citing it |
+| `GET /api/acts/{act}/sections/{number}/judgments` | Judgments citing a section or its old or new counterpart (IPC 420 with BNS 318(4)), most cited first, then newest: `court`, `page`, `page_size` |
+| `GET /api/acts/{act}/judgment-counts` | How many judgments cite each section of an act, counted the same way: `{"420": 12, ...}` (`court` optional) |
 
 Every result carries a `pdf_url` that points at the original judgment PDF, and `good_law`:
 `set_aside`, `partly_set_aside`, `recalled`, `overruled`, or null.

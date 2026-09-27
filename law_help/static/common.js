@@ -67,3 +67,30 @@ function landmarkChip(j) {
 function courtLabel(j) {
   return j.court === "Supreme Court of India" ? "Supreme Court" : titleCase(j.bench);
 }
+
+// One search result, shared by the search page and the section pages (acts.js).
+function resultItem(j) {
+  const names = j.bench_judges?.length ? j.bench_judges : j.judges;
+  const judges = names?.length ? names.map(titleCase).join(", ") : "";
+  return el("li", {},
+    el("a", { class: "title", href: `/judgment?id=${j.id}` }, j.title),
+    j.headline && el("div", { class: "headline" }, j.headline),
+    el("div", { class: "meta" },
+      goodLawChip(j.good_law),
+      landmarkChip(j),
+      el("span", { class: "chip" }, courtLabel(j)),
+      j.disposal_nature && el("span", { class: "chip outcome" }, titleCase(j.disposal_nature)),
+      j.decision_date ? `Decided ${formatDate(j.decision_date)}` : "Decision date unknown",
+      judges && ` · ${judges}`,
+      el("a", { href: j.pdf_url, target: "_blank", rel: "noopener" }, "PDF"),
+    ),
+    // The model summary when there is one, else the extractive one.
+    (j.ai_summary?.summary || j.summary) &&
+      el("p", { class: "snippet" }, truncate(j.ai_summary?.summary || j.summary, 260)),
+  );
+}
+
+// The section page listing every judgment that cites a section (old and new code together).
+function sectionJudgmentsHref(slug, number) {
+  return `/acts?${new URLSearchParams({ act: slug, s: number, view: "judgments" })}`;
+}

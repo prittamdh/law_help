@@ -14,7 +14,7 @@ function joined(nodes, sep = ", ") {
   return nodes.flatMap((n, i) => [i ? sep : "", n]);
 }
 
-// Sections link to the bare act (its text, and the judgments citing it) when we have that act.
+// Sections link to the judgments citing them (and from there the section's text) when we have that act.
 function actsList(acts, bareActs) {
   const slugs = Object.fromEntries((bareActs || []).map((a) => [a.act, a.slug]));
   return el("ul", { class: "plain" }, acts.map((a) => el("li", {},
@@ -22,7 +22,7 @@ function actsList(acts, bareActs) {
     a.sections.length ? [": ", joined(a.sections.map((s) => {
       const label = /^(Order|Rule)\b/.test(s) ? s : `s. ${s}`;
       return slugs[a.act] && !/^Rule\b/.test(s)
-        ? el("a", { href: `/acts?${new URLSearchParams({ act: slugs[a.act], s })}`, title: "Read the section" }, label)
+        ? el("a", { href: sectionJudgmentsHref(slugs[a.act], s), title: "Judgments on this section" }, label)
         : searchLink({ act: a.act, section: s }, label);
     }))] : "",
   )));
