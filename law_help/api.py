@@ -15,6 +15,7 @@ from psycopg.types.json import Jsonb
 
 from . import bareacts, db, feed
 from .acts_api import router as acts_router
+from .authorities_api import router as authorities_router
 from .extract import CASE_KINDS, canonical_act, headline
 from .importer import pdf_url
 from .landmark import landmark_sql
@@ -28,6 +29,7 @@ COURTS = {"supreme": SUPREME_COURT, "rajasthan": "Rajasthan High Court"}
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(acts_router)
+app.include_router(authorities_router)  # before /judgments/{judgment_id}, which would take "citations"
 
 
 @app.get("/", include_in_schema=False)

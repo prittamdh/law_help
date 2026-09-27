@@ -194,3 +194,11 @@ article.judgment .paras .para.target { background: var(--accent-soft); }
 article.judgment .para-num { position: absolute; left: 0; width: 2.2em; text-align: right; color: var(--muted); font: 12px/1.9 system-ui, sans-serif; text-decoration: none; }
 article.judgment .para-num:hover { color: var(--accent); text-decoration: underline; }
 article.judgment .copy-cite { margin-left: 8px; font: 12px system-ui, sans-serif; white-space: nowrap; }
+
+/* List of authorities (saved.html) */
+.authorities { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+.authorities .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.authorities .actions button { padding: 6px 12px; font-size: 13px; }
+.authorities .keep-order { font-size: 13px; color: var(--muted); margin-left: auto; }
+.authorities .hint { font-size: 12px; color: var(--muted); margin: 8px 0; }
+.authorities-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; max-height: 360px; overflow: auto; margin: 0; padding: 10px; background: var(--bg); border-radius: 5px; }

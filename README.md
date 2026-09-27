@@ -190,6 +190,7 @@ The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan upd
 | `GET /feed` | The same filters as `/judgments`, as an RSS 2.0 feed of the newest 50 matches by when law_help added them (`added_at`), so a feed reader shows each update's new judgments. The search page links it as "Follow (RSS)" |
 | `GET /api/acts/{act}/sections/{number}/judgments` | Judgments citing a section or its old or new counterpart (IPC 420 with BNS 318(4)), most cited first, then newest: `court`, `page`, `page_size` |
 | `GET /api/acts/{act}/judgment-counts` | How many judgments cite each section of an act, counted the same way: `{"420": 12, ...}` (`court` optional) |
+| `GET /judgments/citations?ids=1,2,3` | Citation lines for up to 500 judgments at once, used by "List of authorities" on a saved folder (Copy, .txt, or a Word .doc with Sr. No., Case, Citation and Relevant para taken from "para 12" in the note) |
 
 Every result carries a `pdf_url` that points at the original judgment PDF, and `good_law`:
 `set_aside`, `partly_set_aside`, `recalled`, `overruled`, or null.
