@@ -1,5 +1,8 @@
 """The committed bare act data and the old-to-new section map."""
 
+import importlib.util
+from pathlib import Path
+
 import pytest
 
 from law_help import bareacts
@@ -62,5 +65,43 @@ def test_search_forms_cover_sub_sections_and_the_other_code():
     assert [e["ref"] for e in added] == ["103"]
     forms, _ = bareacts.search_forms("Code of Civil Procedure, 1908", "Order VII Rule 11")
     assert [f["sections"] for f in forms] == [["Order VII Rule 11"], ["Order 7 Rule 11"]]
-    forms, added = bareacts.search_forms("Arms Act, 1959", "25")
-    assert forms == [{"act": "Arms Act, 1959", "sections": ["25"]}] and added == []
+    forms, added = bareacts.search_forms("Dowry Prohibition Act, 1961", "4")
+    assert forms == [{"act": "Dowry Prohibition Act, 1961", "sections": ["4"]}] and added == []
+
+
+# The four criminal acts added after the first twelve. Their JSON is built from India Code PDFs by
+# scripts/build_bare_acts.py; until it is, only the wiring is checked.
+BUILDER = Path(__file__).resolve().parent.parent / "scripts" / "build_bare_acts.py"
+NEW_ACTS = {"ndps": "NDPS Act", "pocso": "POCSO Act", "sc-st-act": "SC/ST Act", "arms-act": "Arms Act"}
+
+
+@pytest.mark.parametrize("slug,short,cited", [
+    ("ndps", "NDPS Act", "N.D.P.S. Act"), ("pocso", "POCSO Act", "POCSO Act, 2012"),
+    ("sc-st-act", "SC/ST Act", "SC/ST (Prevention of Atrocities) Act"), ("arms-act", "Arms Act", "Arms Act"),
+])
+def test_new_acts_are_registered_under_the_name_judgments_use(slug, short, cited):
+    spec = importlib.util.spec_from_file_location("build_bare_acts", BUILDER)
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    ACTS = builder.ACTS
+    from law_help.extract import canonical_act
+
+    row = next(a for a in ACTS if a[0] == slug)
+    assert row[1] == canonical_act(cited) and row[2] == short
+    assert row[5] == "India Code"
+    assert slug in bareacts.ORDER
+
+
+@pytest.mark.parametrize("slug,number,title", [
+    ("ndps", "37", "Offences to be cognizable and non-bailable"),
+    ("pocso", "4", "Punishment for penetrative sexual assault"),
+    ("arms-act", "25", "Punishment for certain offences"),
+])
+def test_new_acts_text(slug, number, title):
+    if slug not in bareacts.acts():
+        pytest.skip(f"{slug}.json not built yet")
+    act = bareacts.acts()[slug]
+    assert act["short"] == NEW_ACTS[slug] and act["source"].startswith("India Code")
+    assert bareacts.slug_for(act["act"]) == slug
+    sec = bareacts.get_section(slug, number)
+    assert sec["title"] == title and len(sec["text"]) > 40
