@@ -146,6 +146,22 @@ aside", "if"), appeals the court dismissed, and any case where more than one ord
 The flag shows on the judgment page and as a red chip in search results. Orders the Supreme
 Court set aside are not flagged yet.
 
+### Similar judgments
+
+The judgment page lists up to ten similar judgments (`GET /judgments/{id}/similar`), each with
+one line on why: "2 cases in common · IPC 302". They are loaded after the rest of the page.
+It is rules only, no embeddings (`law_help/similar.py`). A judgment scores for each case both
+cite (linked in `citations`, or the same citation string in `cases_cited`), with a case cited
+everywhere counting less than a rare one; for each later judgment that cites both; for each
+act and section both cite (CrPC s. 439 and other procedural provisions count half); for the
+same case type; and a little for being recent. Other orders in the same case, and the
+connected cases of one common order, are left out.
+
+Every lookup is capped (30 cited cases, the newest 100 judgments citing each, 100 judgments
+per act-section or citation string through the GIN indexes), so a judgment citing IPC s. 302
+costs about as much as any other. On a synthetic 1.1 million judgments with 470,000 citation
+links it took a median of 23 ms and at most 96 ms.
+
 ## Search UI
 
 `uvicorn` also serves a small search page at `/`. It has a keyword box plus filters for bench, decision dates, judge, act, case type and outcome, and each result opens a detail page with the case details, the extracted text and a link to the PDF. The search lives in the URL, so a search can be bookmarked or shared.

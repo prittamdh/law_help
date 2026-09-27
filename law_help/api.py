@@ -17,6 +17,7 @@ from .acts_api import router as acts_router
 from .extract import CASE_KINDS, canonical_act, headline
 from .importer import pdf_url
 from .landmark import landmark_sql
+from .similar import router as similar_router
 from .supreme import COURT_NAME as SUPREME_COURT
 
 app = FastAPI(title="law_help", description="Search Supreme Court and Rajasthan High Court judgments")
@@ -26,6 +27,7 @@ COURTS = {"supreme": SUPREME_COURT, "rajasthan": "Rajasthan High Court"}
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(acts_router)
+app.include_router(similar_router)
 
 
 @app.get("/", include_in_schema=False)
