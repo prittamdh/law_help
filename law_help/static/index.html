@@ -11,7 +11,7 @@
   <header class="site">
     <a class="brand" href="/">law_help</a>
     <span id="corpus">Supreme Court and Rajasthan High Court judgments</span>
-    <span><a href="/acts">Bare Acts</a> · <a href="/saved">Saved</a></span>
+    <span><a href="/acts">Bare Acts</a> · <a href="/topics">Topics</a> · <a href="/saved">Saved</a></span>
   </header>
   <main>
     <form class="search" id="search">
@@ -66,6 +66,10 @@
             <option value="true">Landmark judgments only</option>
           </select>
           <p class="hint">Landmarks are the judgments later judgments cite most, most cited first.</p>
+
+          <label for="f-topic">Topic</label>
+          <select id="f-topic" name="topic"><option value="">Any topic</option></select>
+          <p class="hint"><a href="/topics">About topics</a></p>
 
           <div class="actions">
             <button type="button" class="link" id="clear">Clear filters</button>

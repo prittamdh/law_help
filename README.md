@@ -171,6 +171,21 @@ Where the data comes from, all free:
 
 The JSON under `law_help/data` is committed, so the site needs no download. To rebuild it from the source files: `python scripts/build_bare_acts.py DIR` then `python scripts/build_section_map.py DIR`.
 
+## Topics
+
+`/topics` lists common kinds of cases (bail, cheque bounce, NDPS, motor accident claims, service
+matters, land revenue and tenancy, matrimonial and maintenance, arbitration, writs, dowry and
+cruelty, murder, rape and POCSO, land acquisition, excise, SC/ST atrocities, corruption). A topic's
+page shows how many judgments it has by bench and year, its most cited and latest judgments, and a
+box to search within it.
+
+Topics are rules, defined as data in `law_help/topics.py`: a judgment is in a topic when it cites
+one of the listed sections (IPC 302 or BNS 103, with their sub-sections) or any section of a listed
+act, has one of the listed case types (CRLMB), or has one of the listed phrases in its title or
+opening lines (the Supreme Court's headnote). Each rule is an indexed condition, so
+`/judgments?topic=bail` filters by a topic like any other filter. Topics overlap, and a judgment
+whose text isn't extracted yet is found only by its case type and opening lines.
+
 ## Keeping it current
 
 `python -m law_help.importer update` is the one command to schedule daily (for example `0 6 * * *` in cron). It asks the bucket for the ETag of every year's metadata file (about 20 seconds), re-imports only the files that changed since the last run, then fetches PDFs and extracts text for up to `--text-limit` (default 1000) judgments that have none yet, newest first. ETags are stored in the `source_partitions` table. Two runs can't overlap, and a run that dies partway just redoes the unfinished file next time. On an empty database the first run imports every year. `--dry-run` lists what changed without importing.
@@ -191,6 +206,8 @@ The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan upd
 | `GET /api/acts/{act}/sections/{number}/judgments` | Judgments citing a section or its old or new counterpart (IPC 420 with BNS 318(4)), most cited first, then newest: `court`, `page`, `page_size` |
 | `GET /api/acts/{act}/judgment-counts` | How many judgments cite each section of an act, counted the same way: `{"420": 12, ...}` (`court` optional) |
 | `GET /judgments/citations?ids=1,2,3` | Citation lines for up to 500 judgments at once, used by "List of authorities" on a saved folder (Copy, .txt, or a Word .doc with Sr. No., Case, Citation and Relevant para taken from "para 12" in the note) |
+| `GET /api/topics` | The topics, with how many judgments each has (`counts=false` to skip counting). `GET /judgments?topic=bail` filters by one |
+| `GET /api/topics/{slug}` | A topic's rules, counts by bench and year, and its most cited and latest judgments |
 
 Every result carries a `pdf_url` that points at the original judgment PDF, and `good_law`:
 `set_aside`, `partly_set_aside`, `recalled`, `overruled`, or null.
@@ -211,6 +228,7 @@ Until `text` has run, full-text search only sees the title and the opening lines
 - `law_help/summarize.py`: model-written summaries (summary, issues, holding, outcome) from local Ollama or the Claude API, stored in `ai_summary`
 - `law_help/api.py`: the FastAPI search API
 - `law_help/bareacts.py`, `law_help/acts_api.py`: bare acts and the old-to-new section map; `law_help/data/` holds them, built by `scripts/`
+- `law_help/topics.py`, `law_help/topics_api.py`: practice-area topics as rules, and their API
 - `law_help/static/`: the search and judgment pages (plain HTML, CSS and JavaScript, no build step)
 
 ## Tests

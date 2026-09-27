@@ -202,3 +202,17 @@ article.judgment .copy-cite { margin-left: 8px; font: 12px system-ui, sans-serif
 .authorities .keep-order { font-size: 13px; color: var(--muted); margin-left: auto; }
 .authorities .hint { font-size: 12px; color: var(--muted); margin: 8px 0; }
 .authorities-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; max-height: 360px; overflow: auto; margin: 0; padding: 10px; background: var(--bg); border-radius: 5px; }
+
+/* Topics */
+ol.results.topics .count { color: var(--muted); font-size: 13px; }
+article.topic .crumbs { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+article.topic form.finder input[type=search] {
+  flex: 1; min-width: 180px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); font-size: 15px;
+}
+article.topic .counts { margin: 8px 0 2px; }
+article.topic .note { color: var(--muted); font-size: 12px; margin: 4px 0; }
+article.topic ul.plain .chip { margin-left: 6px; }
+article.topic .equiv { border-left: 3px solid var(--accent-soft); padding: 2px 0 2px 12px; margin: 20px 0 0; }
+article.topic .equiv h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 4px 0; }
+article.topic .equiv li { font-size: 13px; }
