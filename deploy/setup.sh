@@ -36,10 +36,13 @@ if ! grep -q "^$DOMAIN" "$SRC"; then
   printf '\n%s {\n\treverse_proxy law-help-app:8000\n}\n' "$DOMAIN" >> "$SRC"
 fi
 if docker exec "$CADDY" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
-  docker exec -w /etc/caddy "$CADDY" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+  # Caddy's admin API may be off ("admin off"), in which case only a restart applies the change.
+  docker exec -w /etc/caddy "$CADDY" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>/dev/null \
+    || docker restart "$CADDY" >/dev/null
   echo "Done: https://$DOMAIN"
 else
   [ -f "$SRC.bak-law_help" ] && cat "$SRC.bak-law_help" > "$SRC"
+  docker exec "$CADDY" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile || true
   echo "Caddy rejected the new config; restored the original. Nothing else changed."
   exit 1
 fi
