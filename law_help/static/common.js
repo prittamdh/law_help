@@ -8,7 +8,7 @@ function el(tag, attrs = {}, ...children) {
     else node.setAttribute(k, v);
   }
   for (const c of children.flat(Infinity)) {
-    if (c == null || c === "") continue;
+    if (c == null || c === "" || c === false) continue;
     node.append(c instanceof Node ? c : String(c));
   }
   return node;

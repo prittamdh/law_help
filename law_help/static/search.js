@@ -15,7 +15,20 @@ function stateFromURL() {
 function fillForm(state) {
   for (const f of FIELDS) form.elements[f].value = state[f];
   showCourtFilters();
+  countFilters(state);
 }
+
+function countFilters(state) {
+  const active = FIELDS.filter((f) => f !== "q" && state[f]).length;
+  document.getElementById("filters-toggle").textContent = active ? `Filters (${active})` : "Filters";
+}
+
+// On phones the filters start folded (style.css) so the results show first.
+const filtersToggle = document.getElementById("filters-toggle");
+filtersToggle.addEventListener("click", () => {
+  const open = document.getElementById("filters").classList.toggle("open");
+  filtersToggle.setAttribute("aria-expanded", open);
+});
 
 // Jaipur and Jodhpur are High Court benches: with the Supreme Court picked, hide the bench
 // filter and show Supreme Court case types as the example.
@@ -38,6 +51,7 @@ function navigate(state) {
   for (const f of FIELDS) if (state[f]) p.set(f, state[f]);
   if (state.page > 1) p.set("page", state.page);
   history.pushState(null, "", p.toString() ? `?${p}` : location.pathname);
+  countFilters(state);
   run(state);
 }
 
