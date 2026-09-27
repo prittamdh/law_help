@@ -168,3 +168,12 @@ article.act .toc .count { margin-left: 8px; font-size: 13px; white-space: nowrap
 article.act .section-filter { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
 article.act .section-filter select { padding: 6px 8px; font: inherit; }
 article.act ol.results { margin-top: 6px; }
+
+/* Check case status (case-status.js) */
+article.judgment .case-status { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 0 0 12px; }
+article.judgment .case-status a.button { display: inline-block; padding: 6px 12px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 13px; text-decoration: none; }
+@media (prefers-color-scheme: dark) { article.judgment .case-status a.button { color: #1a1a18; } }
+article.judgment .case-status a.more { font-size: 13px; }
+article.judgment .case-status dl { margin: 10px 0 0; }
+article.judgment .case-status code { overflow-wrap: anywhere; }
+article.judgment .case-status .note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }

@@ -18,6 +18,7 @@ from .acts_api import router as acts_router
 from .extract import CASE_KINDS, canonical_act, headline
 from .importer import pdf_url
 from .landmark import landmark_sql
+from .status_links import status_links
 from .supreme import COURT_NAME as SUPREME_COURT
 
 app = FastAPI(title="law_help", description="Search Supreme Court and Rajasthan High Court judgments")
@@ -191,6 +192,7 @@ def get_judgment(judgment_id: int, conn=Depends(get_conn)):
     row["cites"] = conn.execute(CITES_SQL, (judgment_id,)).fetchall()
     row["treated_by"] = conn.execute(TREATED_BY_SQL, (judgment_id,)).fetchall()
     row["citation"] = citation_line(row)
+    row["status_links"] = status_links(row)
     return _present(row)
 
 
