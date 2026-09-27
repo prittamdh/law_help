@@ -66,6 +66,18 @@ def test_full_text_search(client):
     assert body["results"][0]["pdf_url"].endswith("data/pdf/test/b.pdf")
 
 
+def test_common_word_search_caps_count_and_ranks_recent_matches(client, monkeypatch):
+    from law_help import api
+    monkeypatch.setattr(api, "SEARCH_COUNT_CAP", 1)
+    monkeypatch.setattr(api, "SEARCH_RANK_POOL", 1)
+    body = client.get("/judgments", params={"q": "appeal or pension"}).json()
+    assert body["total"] == 1 and body["total_capped"] and body["ranked"] == 1
+    assert [r["cnr"] for r in body["results"]] == ["RJHC020000011994"]  # decided 2024, the newer one
+
+    body = client.get("/judgments", params={"q": "pension"}).json()
+    assert body["total"] == 1 and not body["total_capped"] and body["ranked"] == 1
+
+
 def test_filter_by_judge_on_division_bench(client):
     body = client.get("/judgments", params={"judge": "vinod kumar bharwani"}).json()
     assert body["total"] == 1 and body["results"][0]["bench"] == "jodhpur"

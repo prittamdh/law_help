@@ -79,12 +79,16 @@ async function run(state) {
   }
   if (token !== current) return;
 
-  const pages = Math.max(1, Math.ceil(body.total / PAGE_SIZE));
-  const from = body.total ? (body.page - 1) * PAGE_SIZE + 1 : 0;
-  const to = Math.min(body.total, body.page * PAGE_SIZE);
-  summary.textContent = body.total
-    ? `${from.toLocaleString()}–${to.toLocaleString()} of ${body.total.toLocaleString()} judgments`
-    : "";
+  // A word search ranks only the most recent matches (body.ranked); the pages cover those.
+  const shown = body.ranked ?? body.total;
+  const pages = Math.max(1, Math.ceil(shown / PAGE_SIZE));
+  const from = shown ? (body.page - 1) * PAGE_SIZE + 1 : 0;
+  const to = Math.min(shown, body.page * PAGE_SIZE);
+  const total = `${body.total.toLocaleString()}${body.total_capped ? "+" : ""}`;
+  summary.textContent = !body.total ? ""
+    : shown < body.total
+      ? `${from.toLocaleString()}–${to.toLocaleString()} of the ${shown.toLocaleString()} most recent of ${total} judgments`
+      : `${from.toLocaleString()}–${to.toLocaleString()} of ${total} judgments`;
   // IPC 302 also found BNS 103: say so, since those results don't mention the section searched.
   const eqs = (body.equivalents || []).filter((e) => e.ref);
   if (eqs.length && body.total) {
