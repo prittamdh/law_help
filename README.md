@@ -153,6 +153,7 @@ Court set aside are not flagged yet.
 The act and section filters use the acts each judgment cites (see `importer structure`), so they only find judgments whose text has been extracted. The act box accepts short forms such as `IPC` or `NDPS Act`. The detail page also shows the summary, the neutral citation, advocates, the acts and sections cited (each one links to a search), and the cases cited.
 
 "Check case status" on the judgment page opens the court's own case status search in a new tab: eCourts for the Rajasthan HC (with the bench preselected on the case number search) and the Supreme Court's site for its judgments. Those searches need a captcha, so they can't be linked to the case itself; the box beside the link shows the CNR (or neutral citation) with a Copy button, and the case type, number and year. The links are built in `law_help/status_links.py` and returned as `status_links` by `GET /judgments/{id}`.
+The full text is split into paragraphs, numbered as the judgment numbers them ("12.") or, when it doesn't, counted in order. `/judgment?id=1#p12` opens at paragraph 12, and "Copy with cite" copies a paragraph followed by the citation and ", para 12". A find box highlights matches in the text (Enter and Shift+Enter step through them); opened from a search, it starts with the search words (`static/find.js`).
 
 ## Bare Acts
 

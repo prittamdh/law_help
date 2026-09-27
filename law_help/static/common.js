@@ -72,8 +72,9 @@ function courtLabel(j) {
 function resultItem(j) {
   const names = j.bench_judges?.length ? j.bench_judges : j.judges;
   const judges = names?.length ? names.map(titleCase).join(", ") : "";
+  const q = new URLSearchParams(location.search).get("q");  // the judgment page highlights the search words
   return el("li", {},
-    el("a", { class: "title", href: `/judgment?id=${j.id}` }, j.title),
+    el("a", { class: "title", href: `/judgment?id=${j.id}${q ? `&q=${encodeURIComponent(q)}` : ""}` }, j.title),
     j.headline && el("div", { class: "headline" }, j.headline),
     el("div", { class: "meta" },
       goodLawChip(j.good_law),
