@@ -6,6 +6,9 @@ Not needed to run the site: the JSON it writes is committed. Run it only to refr
 
 SOURCE_DIR holds the files named in ACTS: India Code PDFs (indiacode.nic.in), the official
 gazette BNSS, and for three older acts the JSON of github.com/civictech-India/Indian-Law-Penal-Code-Json.
+An India Code PDF is the "Download" link on the act's page (search the act's name at
+https://www.indiacode.nic.in); save it under the file name ACTS gives. Acts whose file is
+missing are skipped, so a SOURCE_DIR holding only the new PDFs rebuilds only those acts.
 The text is Indian legislation, which s. 52(1)(q) of the Copyright Act, 1957 lets anyone reproduce.
 """
 
@@ -49,6 +52,14 @@ ACTS = [
      "THE INDIAN CONTRACT ACT, 1872.pdf", "India Code", None),
     ("it-act", "Information Technology Act, 2000", "IT Act", "section",
      "THE INFORMATION TECHNOLOGY ACT, 2000.pdf", "India Code", None),
+    ("ndps", "Narcotic Drugs and Psychotropic Substances Act, 1985", "NDPS Act", "section",
+     "THE NARCOTIC DRUGS AND PSYCHOTROPIC SUBSTANCES ACT, 1985.pdf", "India Code", None),
+    ("pocso", "Protection of Children from Sexual Offences Act, 2012", "POCSO Act", "section",
+     "THE PROTECTION OF CHILDREN FROM SEXUAL OFFENCES ACT, 2012.pdf", "India Code", None),
+    ("sc-st-act", "Scheduled Castes and Scheduled Tribes (Prevention of Atrocities) Act, 1989", "SC/ST Act",
+     "section", "THE SCHEDULED CASTES AND THE SCHEDULED TRIBES (PREVENTION OF ATROCITIES) ACT, 1989.pdf",
+     "India Code", None),
+    ("arms-act", "Arms Act, 1959", "Arms Act", "section", "THE ARMS ACT, 1959.pdf", "India Code", None),
 ]
 
 BODY_PT = 8.0     # superscript footnote markers are 6-7 pt; text is 9-11 pt
