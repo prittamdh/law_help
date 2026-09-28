@@ -176,22 +176,25 @@ def search_judgments(
 ):
     where_sql, params, added = filters.where_sql, dict(filters.params), filters.equivalents
     order_sql = (
-        "ORDER BY ts_rank(search, websearch_to_tsquery('english', %(q)s)) DESC, decision_date DESC"
-        if filters.q else "ORDER BY cited_by_count DESC, decision_date DESC NULLS LAST, id DESC"
+        "ORDER BY cited_by_count DESC, decision_date DESC NULLS LAST, id DESC"
         if filters.landmark else "ORDER BY decision_date DESC NULLS LAST, id DESC"
     )
     params.update(limit=page_size, offset=(page - 1) * page_size)
 
     if filters.q:
         # A common word matches hundreds of thousands of judgments. Counting them all and ranking
-        # each one (ts_rank reads the whole stored text) takes minutes on a small server, so the
-        # count stops at SEARCH_COUNT_CAP and only the SEARCH_RANK_POOL most recent matches are ranked.
+        # each one (ranking reads the whole stored text) takes minutes on a small server, so the
+        # count stops at SEARCH_COUNT_CAP, and past SEARCH_RANK_ALL matches only the
+        # SEARCH_RANK_POOL most recent are ranked.
         total = conn.execute(
             f"SELECT count(*) AS n FROM (SELECT 1 FROM judgments {where_sql} LIMIT {SEARCH_COUNT_CAP + 1}) m",
             params,
         ).fetchone()["n"]
-        where_sql = (f"WHERE id IN (SELECT id FROM judgments {where_sql} "
-                     f"ORDER BY decision_date DESC NULLS LAST, id DESC LIMIT {SEARCH_RANK_POOL})")
+        pool = total if total <= SEARCH_RANK_ALL else SEARCH_RANK_POOL
+        if total > SEARCH_RANK_ALL:
+            where_sql = (f"WHERE id IN (SELECT id FROM judgments {where_sql} "
+                         f"ORDER BY decision_date DESC NULLS LAST, id DESC LIMIT {SEARCH_RANK_POOL})")
+        order_sql = rank_order_sql(conn, filters.q, params)
     else:
         total = conn.execute(f"SELECT count(*) AS n FROM judgments {where_sql}", params).fetchone()["n"]
     rows = conn.execute(
@@ -201,13 +204,48 @@ def search_judgments(
     ).fetchall()
     capped = bool(filters.q) and total > SEARCH_COUNT_CAP
     return {"total": min(total, SEARCH_COUNT_CAP), "total_capped": capped,
-            "ranked": min(total, SEARCH_RANK_POOL) if filters.q else total,
+            "ranked": min(total, pool) if filters.q else total,
             "page": page, "page_size": page_size, "equivalents": added,
             "results": [_present(r) for r in rows]}
 
 
 SEARCH_COUNT_CAP = 10_000
+SEARCH_RANK_ALL = 5_000
 SEARCH_RANK_POOL = 1_000
+MAX_PHRASES = 8
+
+
+def query_phrases(conn, q: str) -> list[str]:
+    """Each pair of neighbouring words in a search, with any stopwords between them:
+    'armed force tribunal contempt' -> 'armed force', 'force tribunal', 'tribunal contempt';
+    'contempt of court' -> 'contempt of court'. Excluded (-word) terms and OR are left out."""
+    q = re.sub(r'-"[^"]*"|(?<!\w)-\S+', " ", q)
+    parts = [re.findall(r"[\w']+", part) for part in re.split(r"\bor\b", q, flags=re.I)]
+    words = [w for part in parts for w in part]
+    if len(words) < 2:
+        return []
+    rows = conn.execute("SELECT numnode(plainto_tsquery('english', w)) > 0 AS word "
+                        "FROM unnest(%s::text[]) WITH ORDINALITY AS t(w, i) ORDER BY i", (words,)).fetchall()
+    phrases, start = [], 0
+    for part in parts:
+        content = [i for i in range(len(part)) if rows[start + i]["word"]]
+        phrases += [" ".join(part[a:b + 1]) for a, b in zip(content, content[1:])]
+        start += len(part)
+    return phrases[:MAX_PHRASES]
+
+
+def rank_order_sql(conn, q: str, params: dict) -> str:
+    """ORDER BY for a word search. Judgments where the searched words sit next to each other come
+    first ('armed forces tribunal' beats a judgment with 'armed', 'force' and 'tribunal' pages
+    apart), then by cover density: how close together and how often the words occur, relative
+    to the judgment's length. Plain ts_rank tops out near 1 for any long judgment, so it could
+    not tell those apart."""
+    phrases = query_phrases(conn, q)
+    params.update({f"phrase{i}": p for i, p in enumerate(phrases)})
+    together = " + ".join(f"(search @@ phraseto_tsquery('english', %(phrase{i})s))::int"
+                          for i in range(len(phrases)))
+    return ("ORDER BY " + (f"({together}) DESC, " if phrases else "")
+            + "ts_rank_cd(search, websearch_to_tsquery('english', %(q)s), 1) DESC, decision_date DESC")
 
 
 @app.get("/judgments/{judgment_id}")
