@@ -1,0 +1,7 @@
+.git
+.venv
+.cache
+tests
+eval
+docs
+deploy

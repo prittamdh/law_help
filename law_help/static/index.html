@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>law_help: Supreme Court and Rajasthan High Court judgments</title>
+  <link rel="stylesheet" href="/static/style.css?v=2">
+  <link rel="alternate" type="application/rss+xml" title="law_help: new judgments" href="/feed" id="feed-alternate">
+</head>
+<body>
+  <header class="site">
+    <a class="brand" href="/">law_help</a>
+    <span id="corpus">Supreme Court and Rajasthan High Court judgments</span>
+    <span><a href="/acts">Bare Acts</a> · <a href="/topics">Topics</a> · <a href="/saved">Saved</a></span>
+  </header>
+  <main>
+    <form class="search" id="search">
+      <div class="bar">
+        <input type="search" name="q" placeholder='Search judgments, e.g. bail "NDPS Act" -dismissed' aria-label="Keywords" autofocus>
+        <button type="submit">Search</button>
+      </div>
+      <div class="layout">
+        <button type="button" class="filters-toggle" id="filters-toggle" aria-expanded="false" aria-controls="filters">Filters</button>
+        <aside class="filters" id="filters">
+          <h2>Filters</h2>
+          <label for="f-court">Court</label>
+          <select id="f-court" name="court">
+            <option value="">All courts</option>
+            <option value="supreme">Supreme Court</option>
+            <option value="rajasthan">Rajasthan High Court</option>
+          </select>
+
+          <div id="bench-filter">
+            <label for="f-bench">Bench</label>
+            <select id="f-bench" name="bench">
+              <option value="">Any bench</option>
+              <option value="jaipur">Jaipur</option>
+              <option value="jodhpur">Jodhpur</option>
+            </select>
+          </div>
+
+          <label>Decided between</label>
+          <div class="row">
+            <input type="date" name="decided_from" aria-label="Decided from" title="From">
+            <input type="date" name="decided_to" aria-label="Decided to" title="To">
+          </div>
+
+          <label for="f-judge">Judge</label>
+          <input id="f-judge" name="judge" list="judges" placeholder="e.g. SAMEER JAIN" autocomplete="off">
+          <datalist id="judges"></datalist>
+
+          <label for="f-act">Act</label>
+          <input id="f-act" name="act" list="acts" placeholder="e.g. IPC, NDPS Act" autocomplete="off">
+          <datalist id="acts"></datalist>
+          <label for="f-section">Section</label>
+          <input id="f-section" name="section" placeholder="e.g. 302, 120-B">
+          <p class="hint">Acts and sections are read from the judgment text, so only judgments with extracted text match. An IPC, CrPC or Evidence Act section also finds its BNS, BNSS or BSA counterpart, and the other way round.</p>
+
+          <label for="f-case-type">Case type</label>
+          <input id="f-case-type" name="case_type" list="case-types" placeholder="e.g. CW, CRLMB" autocomplete="off">
+          <datalist id="case-types"></datalist>
+
+          <label for="f-disposal">Outcome</label>
+          <select id="f-disposal" name="disposal"><option value="">Any outcome</option></select>
+
+          <label for="f-landmark">Show</label>
+          <select id="f-landmark" name="landmark">
+            <option value="">All judgments</option>
+            <option value="true">Landmark judgments only</option>
+          </select>
+          <p class="hint">Landmarks are the judgments later judgments cite most, most cited first.</p>
+
+          <label for="f-topic">Topic</label>
+          <select id="f-topic" name="topic"><option value="">Any topic</option></select>
+          <p class="hint"><a href="/topics">About topics</a></p>
+
+          <div class="actions">
+            <button type="button" class="link" id="clear">Clear filters</button>
+            <button type="submit">Apply</button>
+          </div>
+        </aside>
+        <section aria-live="polite">
+          <p class="summary" id="summary"></p>
+          <p class="follow"><a id="follow-rss" href="/feed" title="Paste into any feed reader to get new matching judgments">Follow (RSS)</a>
+            <span class="tip" tabindex="0" title="Paste into any feed reader to get new matching judgments" aria-label="Paste into any feed reader to get new matching judgments">?</span></p>
+          <ol class="results" id="results"></ol>
+          <div class="pager" id="pager" hidden>
+            <button type="button" id="prev">Previous</button>
+            <span id="page-info"></span>
+            <button type="button" id="next">Next</button>
+          </div>
+        </section>
+      </div>
+    </form>
+  </main>
+  <footer class="site">
+    Data: <a href="https://registry.opendata.aws/indian-high-court-judgments/">Indian High Court Judgments</a> and
+    <a href="https://registry.opendata.aws/indian-supreme-court-judgments/">Indian Supreme Court Judgments</a> (CC-BY-4.0), sourced from eCourts and eSCR.
+    Always check the original PDF before relying on a judgment.
+  </footer>
+  <script src="/static/common.js?v=2"></script>
+  <script src="/static/search.js?v=5"></script>
+</body>
+</html>
