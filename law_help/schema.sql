@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS judgments (
 CREATE INDEX IF NOT EXISTS judgments_search_idx        ON judgments USING GIN (search);
 CREATE INDEX IF NOT EXISTS judgments_judges_idx        ON judgments USING GIN (judges);
 CREATE INDEX IF NOT EXISTS judgments_decision_date_idx ON judgments (decision_date DESC);
+-- Matches the list order (newest first), so a word search matching a third of all judgments walks
+-- this index and stops after the newest matches, instead of reading every judgment's stored text.
+CREATE INDEX IF NOT EXISTS judgments_recent_idx        ON judgments (decision_date DESC NULLS LAST, id DESC);
 CREATE INDEX IF NOT EXISTS judgments_case_idx          ON judgments (case_type, case_year, case_number);
 CREATE INDEX IF NOT EXISTS judgments_cnr_idx           ON judgments (cnr);
 
