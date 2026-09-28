@@ -91,6 +91,30 @@ def test_words_side_by_side_rank_above_scattered_words(client):
         conn.close()
 
 
+def test_every_searched_word_counts(client):
+    rows = [
+        # Newer and all about the Tribunal, but contempt comes up once.
+        dict(ROWS[1], cnr="RJHCTRIBUNAL", pdf_link="test/tribunal.pdf", decision_date="2025-01-01",
+             text="No contempt of the Armed Forces Tribunal was alleged. "
+                  + "The Armed Forces Tribunal granted pension. " * 30),
+        dict(ROWS[1], cnr="RJHCCONTEMPT", pdf_link="test/contempt.pdf", decision_date="2020-01-01",
+             text="The order of the Armed Forces Tribunal was not obeyed. " * 3 + "Heard at length. " * 50
+                  + "The contempt is wilful. " * 10),
+    ]
+    conn = db.connect(TEST_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.executemany(UPSERT_SQL, rows)
+            cur.executemany("UPDATE judgments SET full_text = %(text)s WHERE cnr = %(cnr)s", rows)
+        conn.commit()
+        body = client.get("/judgments", params={"q": "armed force tribunal contempt"}).json()
+        assert [r["cnr"] for r in body["results"]] == ["RJHCCONTEMPT", "RJHCTRIBUNAL"]
+    finally:
+        conn.execute("DELETE FROM judgments WHERE cnr IN ('RJHCTRIBUNAL', 'RJHCCONTEMPT')")
+        conn.commit()
+        conn.close()
+
+
 def test_common_word_search_caps_count_and_ranks_recent_matches(client, monkeypatch):
     from law_help import api
     monkeypatch.setattr(api, "SEARCH_COUNT_CAP", 1)

@@ -215,15 +215,19 @@ SEARCH_RANK_POOL = 1_000
 MAX_PHRASES = 8
 
 
-def query_phrases(conn, q: str) -> list[str]:
-    """Each pair of neighbouring words in a search, with any stopwords between them:
+def query_terms(conn, q: str) -> tuple[list[str], list[str]]:
+    """The phrases and words of a search, for ranking.
+
+    Phrases are each pair of neighbouring words, with any stopwords between them:
     'armed force tribunal contempt' -> 'armed force', 'force tribunal', 'tribunal contempt';
-    'contempt of court' -> 'contempt of court'. Excluded (-word) terms and OR are left out."""
+    'contempt of court' -> 'contempt of court'. Words are the searched words other than stopwords,
+    and only when the search has no OR (a judgment needs just one side of an OR).
+    Excluded (-word) terms are left out of both."""
     q = re.sub(r'-"[^"]*"|(?<!\w)-\S+', " ", q)
     parts = [re.findall(r"[\w']+", part) for part in re.split(r"\bor\b", q, flags=re.I)]
     words = [w for part in parts for w in part]
     if len(words) < 2:
-        return []
+        return [], []
     rows = conn.execute("SELECT numnode(plainto_tsquery('english', w)) > 0 AS word "
                         "FROM unnest(%s::text[]) WITH ORDINALITY AS t(w, i) ORDER BY i", (words,)).fetchall()
     phrases, start = [], 0
@@ -231,21 +235,33 @@ def query_phrases(conn, q: str) -> list[str]:
         content = [i for i in range(len(part)) if rows[start + i]["word"]]
         phrases += [" ".join(part[a:b + 1]) for a, b in zip(content, content[1:])]
         start += len(part)
-    return phrases[:MAX_PHRASES]
+    content_words = [w for w, r in zip(words, rows) if r["word"]] if len(parts) == 1 else []
+    return phrases[:MAX_PHRASES], content_words[:MAX_PHRASES]
 
 
 def rank_order_sql(conn, q: str, params: dict) -> str:
-    """ORDER BY for a word search. Judgments where the searched words sit next to each other come
-    first ('armed forces tribunal' beats a judgment with 'armed', 'force' and 'tribunal' pages
-    apart), then by cover density: how close together and how often the words occur, relative
-    to the judgment's length. Plain ts_rank tops out near 1 for any long judgment, so it could
-    not tell those apart."""
-    phrases = query_phrases(conn, q)
+    """ORDER BY for a word search.
+
+    1. Judgments where the searched words sit next to each other ('armed forces tribunal' beats
+       a judgment with 'armed', 'force' and 'tribunal' pages apart).
+    2. How much the judgment says about its least-mentioned searched word, so every word counts:
+       for 'armed force tribunal contempt', a judgment on contempt of a Tribunal order beats one
+       that mentions the Tribunal 30 times and contempt once.
+    3. Cover density: how close together and how often the words occur.
+    Plain ts_rank tops out near 1 for any long judgment, so it could not tell these apart."""
+    phrases, words = query_terms(conn, q)
     params.update({f"phrase{i}": p for i, p in enumerate(phrases)})
-    together = " + ".join(f"(search @@ phraseto_tsquery('english', %(phrase{i})s))::int"
-                          for i in range(len(phrases)))
-    return ("ORDER BY " + (f"({together}) DESC, " if phrases else "")
-            + "ts_rank_cd(search, websearch_to_tsquery('english', %(q)s), 1) DESC, decision_date DESC")
+    params.update({f"word{i}": w for i, w in enumerate(words)})
+    order = []
+    if phrases:
+        order.append("(" + " + ".join(f"(search @@ phraseto_tsquery('english', %(phrase{i})s))::int"
+                                      for i in range(len(phrases))) + ") DESC")
+    if len(words) > 1:
+        # ts_rank_cd of one word is its count, weighted by where it occurs (title, headnote, text)
+        order.append("LEAST(" + ", ".join(f"ts_rank_cd(search, plainto_tsquery('english', %(word{i})s))"
+                                          for i in range(len(words))) + ") DESC")
+    order.append("ts_rank_cd(search, websearch_to_tsquery('english', %(q)s), 1) DESC")
+    return "ORDER BY " + ", ".join(order) + ", decision_date DESC"
 
 
 @app.get("/judgments/{judgment_id}")
