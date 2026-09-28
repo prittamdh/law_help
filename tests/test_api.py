@@ -83,7 +83,7 @@ def test_words_side_by_side_rank_above_scattered_words(client):
             cur.executemany(UPSERT_SQL, rows)
             cur.executemany("UPDATE judgments SET full_text = %(text)s WHERE cnr = %(cnr)s", rows)
         conn.commit()
-        body = client.get("/judgments", params={"q": "armed force tribunal contempt"}).json()
+        body = client.get("/judgments", params={"q": "armed force tribunal contempt", "mentions": True}).json()
         assert [r["cnr"] for r in body["results"]] == ["RJHCPHRASE", "RJHCSCATTER"]
     finally:
         conn.execute("DELETE FROM judgments WHERE cnr IN ('RJHCSCATTER', 'RJHCPHRASE')")
@@ -107,10 +107,46 @@ def test_every_searched_word_counts(client):
             cur.executemany(UPSERT_SQL, rows)
             cur.executemany("UPDATE judgments SET full_text = %(text)s WHERE cnr = %(cnr)s", rows)
         conn.commit()
-        body = client.get("/judgments", params={"q": "armed force tribunal contempt"}).json()
+        body = client.get("/judgments", params={"q": "armed force tribunal contempt", "mentions": True}).json()
         assert [r["cnr"] for r in body["results"]] == ["RJHCCONTEMPT", "RJHCTRIBUNAL"]
+        # By default the one that mentions contempt only in passing is left out.
+        body = client.get("/judgments", params={"q": "armed force tribunal contempt"}).json()
+        assert [r["cnr"] for r in body["results"]] == ["RJHCCONTEMPT"]
     finally:
         conn.execute("DELETE FROM judgments WHERE cnr IN ('RJHCTRIBUNAL', 'RJHCCONTEMPT')")
+        conn.commit()
+        conn.close()
+
+
+def test_word_search_lists_judgments_about_the_words(client):
+    rows = [
+        dict(ROWS[1], cnr="RJHCPASSING", pdf_link="test/passing.pdf", decision_date="2025-01-01",
+             text="Pension arrears are due. Liberty to file a contempt petition if not paid."),
+        dict(ROWS[1], cnr="RJHCABOUT", pdf_link="test/about.pdf", decision_date="2020-01-01",
+             text="The respondents wilfully disobeyed the order. " + "Contempt is made out. " * 3),
+        # A contempt petition is about contempt however rarely the word appears.
+        dict(ROWS[1], cnr="RJHCCCP", pdf_link="test/ccp.pdf", decision_date="2019-01-01", case_type="CCP",
+             text="Compliance has been made. The petition is closed. Contempt dropped."),
+    ]
+    conn = db.connect(TEST_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.executemany(UPSERT_SQL, rows)
+            cur.executemany("UPDATE judgments SET full_text = %(text)s WHERE cnr = %(cnr)s", rows)
+        conn.commit()
+        body = client.get("/judgments", params={"q": "contempt"}).json()
+        assert [r["cnr"] for r in body["results"]] == ["RJHCABOUT", "RJHCCCP"]
+        assert body["about"] and body["ranked"] == 2 and body["mentioning"] == 3
+
+        body = client.get("/judgments", params={"q": "contempt", "mentions": True}).json()
+        assert {r["cnr"] for r in body["results"]} == {"RJHCABOUT", "RJHCCCP", "RJHCPASSING"}
+        assert not body["about"] and body["ranked"] == 3
+
+        # Nothing is about 'liberty': every mention is listed rather than none.
+        body = client.get("/judgments", params={"q": "liberty"}).json()
+        assert [r["cnr"] for r in body["results"]] == ["RJHCPASSING"] and not body["about"]
+    finally:
+        conn.execute("DELETE FROM judgments WHERE cnr IN ('RJHCPASSING', 'RJHCABOUT', 'RJHCCCP')")
         conn.commit()
         conn.close()
 

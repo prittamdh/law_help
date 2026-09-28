@@ -8,6 +8,7 @@ function stateFromURL() {
   const p = new URLSearchParams(location.search);
   const state = { page: Math.max(1, parseInt(p.get("page"), 10) || 1) };
   for (const f of FIELDS) state[f] = p.get(f) || "";
+  state.mentions = p.get("mentions") === "1";
   if (state.court === "supreme") state.bench = "";  // an old link may carry both
   return state;
 }
@@ -49,6 +50,7 @@ function stateFromForm() {
 function navigate(state) {
   const p = new URLSearchParams();
   for (const f of FIELDS) if (state[f]) p.set(f, state[f]);
+  if (state.mentions) p.set("mentions", "1");
   if (state.page > 1) p.set("page", state.page);
   history.pushState(null, "", p.toString() ? `?${p}` : location.pathname);
   countFilters(state);
@@ -58,6 +60,7 @@ function navigate(state) {
 function apiParams(state) {
   const p = new URLSearchParams({ page: state.page, page_size: PAGE_SIZE });
   for (const f of FIELDS) if (state[f]) p.set(f, state[f]);
+  if (state.mentions) p.set("mentions", "true");
   // A section on its own means nothing to the API, so drop it until an act is chosen.
   if (!state.act) p.delete("section");
   return p;
@@ -100,9 +103,23 @@ async function run(state) {
   const to = Math.min(shown, body.page * PAGE_SIZE);
   const total = `${body.total.toLocaleString()}${body.total_capped ? "+" : ""}`;
   summary.textContent = !body.total ? ""
+    : body.about
+      ? `${from.toLocaleString()}–${to.toLocaleString()} of ${shown.toLocaleString()} judgments about these words`
     : shown < body.total
       ? `${from.toLocaleString()}–${to.toLocaleString()} of the ${shown.toLocaleString()} most recent of ${total} judgments`
       : `${from.toLocaleString()}–${to.toLocaleString()} of ${total} judgments`;
+  // Judgments that only mention the words in passing are left out; one click shows them too.
+  const withMentions = (on) => {
+    const p = new URLSearchParams(location.search);
+    p.delete("page");
+    if (on) p.set("mentions", "1"); else p.delete("mentions");
+    return `?${p}`;
+  };
+  if (body.about && body.mentioning > shown) {
+    summary.append(" · ", el("a", { href: withMentions(true) }, `Show all ${body.mentioning.toLocaleString()} that mention them`));
+  } else if (state.mentions && state.q) {
+    summary.append(" · ", el("a", { href: withMentions(false) }, "Only those about these words"));
+  }
   // IPC 302 also found BNS 103: say so, since those results don't mention the section searched.
   const eqs = (body.equivalents || []).filter((e) => e.ref);
   if (eqs.length && body.total) {

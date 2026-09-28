@@ -172,6 +172,8 @@ def search_judgments(
     filters: Filters = Depends(judgment_filters),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    mentions: bool = Query(False, description="word search: also list judgments that only mention "
+                           "the words in passing"),
     conn=Depends(get_conn),
 ):
     where_sql, params, added = filters.where_sql, dict(filters.params), filters.equivalents
@@ -194,17 +196,43 @@ def search_judgments(
         if total > SEARCH_RANK_ALL:
             where_sql = (f"WHERE id IN (SELECT id FROM judgments {where_sql} "
                          f"ORDER BY decision_date DESC NULLS LAST, id DESC LIMIT {SEARCH_RANK_POOL})")
-        order_sql = rank_order_sql(conn, filters.q, params)
+        phrases, words = query_terms(conn, filters.q)
+        order_sql = rank_order_sql(phrases, words, params)
+        mentioning = ranked = min(total, pool)
     else:
         total = conn.execute(f"SELECT count(*) AS n FROM judgments {where_sql}", params).fetchone()["n"]
-    rows = conn.execute(
-        f"SELECT {LIST_COLUMNS} FROM judgments {where_sql} {order_sql} "
-        "LIMIT %(limit)s OFFSET %(offset)s",
-        params,
-    ).fetchall()
+
+    # A word search lists only the judgments about the searched words, unless asked for every
+    # mention or none are. The count rides along with the page, so the pool is ranked once.
+    about = about_sql(conn, words, params) if filters.q and not mentions else None
+    rows = None
+    if about:
+        about_where = f"{where_sql} AND {about}"
+        rows = conn.execute(
+            f"SELECT {LIST_COLUMNS}, count(*) OVER () AS about_n FROM judgments {about_where} {order_sql} "
+            "LIMIT %(limit)s OFFSET %(offset)s",
+            params,
+        ).fetchall()
+        n = rows[0]["about_n"] if rows else conn.execute(
+            f"SELECT count(*) AS n FROM judgments {about_where}", params).fetchone()["n"]
+        for r in rows:
+            del r["about_n"]
+        if n:
+            ranked = n
+        else:
+            about, rows = None, None
+    if rows is None:
+        rows = conn.execute(
+            f"SELECT {LIST_COLUMNS} FROM judgments {where_sql} {order_sql} "
+            "LIMIT %(limit)s OFFSET %(offset)s",
+            params,
+        ).fetchall()
     capped = bool(filters.q) and total > SEARCH_COUNT_CAP
     return {"total": min(total, SEARCH_COUNT_CAP), "total_capped": capped,
-            "ranked": min(total, pool) if filters.q else total,
+            "ranked": ranked if filters.q else total,
+            # word search: whether only judgments about the words are listed, and how many mention them
+            "about": bool(about),
+            "mentioning": mentioning if filters.q else total,
             "page": page, "page_size": page_size, "equivalents": added,
             "results": [_present(r) for r in rows]}
 
@@ -221,13 +249,14 @@ def query_terms(conn, q: str) -> tuple[list[str], list[str]]:
     Phrases are each pair of neighbouring words, with any stopwords between them:
     'armed force tribunal contempt' -> 'armed force', 'force tribunal', 'tribunal contempt';
     'contempt of court' -> 'contempt of court'. Words are the searched words other than stopwords,
-    and only when the search has no OR (a judgment needs just one side of an OR).
+    and only when the search has no OR (a judgment needs just one side of an OR). A one-word search
+    returns that word, stopword or not (a search for only stopwords matches nothing anyway).
     Excluded (-word) terms are left out of both."""
     q = re.sub(r'-"[^"]*"|(?<!\w)-\S+', " ", q)
     parts = [re.findall(r"[\w']+", part) for part in re.split(r"\bor\b", q, flags=re.I)]
     words = [w for part in parts for w in part]
     if len(words) < 2:
-        return [], []
+        return [], [w for w in words if re.search(r"\w", w)][:1]
     rows = conn.execute("SELECT numnode(plainto_tsquery('english', w)) > 0 AS word "
                         "FROM unnest(%s::text[]) WITH ORDINALITY AS t(w, i) ORDER BY i", (words,)).fetchall()
     phrases, start = [], 0
@@ -239,7 +268,34 @@ def query_terms(conn, q: str) -> tuple[list[str], list[str]]:
     return phrases[:MAX_PHRASES], content_words[:MAX_PHRASES]
 
 
-def rank_order_sql(conn, q: str, params: dict) -> str:
+# A judgment is about a word when it uses it about three times (weight C, 0.2 each), or in the
+# title (A, 1.0) or opening lines / headnote (B, 0.4) and once more, or when its case type is one
+# the word names (a contempt petition is about contempt however often the word appears).
+ABOUT_MIN_RANK = 0.6
+
+
+def about_sql(conn, words: list[str], params: dict) -> str | None:
+    """A condition that a judgment is about every searched word, not just mentioning it in passing."""
+    if not words:
+        return None
+    kinds = conn.execute(
+        "SELECT w.i, array_agg(k.code) AS codes FROM unnest(%s::text[]) WITH ORDINALITY AS w(word, i) "
+        "JOIN unnest(%s::text[], %s::text[]) AS k(code, name) "
+        "ON to_tsvector('english', k.name) @@ plainto_tsquery('english', w.word) GROUP BY w.i",
+        (words, list(CASE_KINDS), list(CASE_KINDS.values())),
+    ).fetchall()
+    codes = {r["i"] - 1: r["codes"] for r in kinds}
+    conds = []
+    for i, w in enumerate(words):
+        params[f"about{i}"], params[f"about{i}_kinds"] = w, codes.get(i, [])
+        conds.append(f"(ts_rank_cd(search, plainto_tsquery('english', %(about{i})s)) >= {ABOUT_MIN_RANK}"
+                     f" OR case_type = ANY(%(about{i}_kinds)s)"
+                     # Supreme Court case types are spelt out: CONTEMPT PETITION (CIVIL)
+                     f" OR to_tsvector('english', coalesce(case_type, '')) @@ plainto_tsquery('english', %(about{i})s))")
+    return "(" + " AND ".join(conds) + ")"
+
+
+def rank_order_sql(phrases: list[str], words: list[str], params: dict) -> str:
     """ORDER BY for a word search.
 
     1. Judgments where the searched words sit next to each other ('armed forces tribunal' beats
@@ -249,7 +305,6 @@ def rank_order_sql(conn, q: str, params: dict) -> str:
        that mentions the Tribunal 30 times and contempt once.
     3. Cover density: how close together and how often the words occur.
     Plain ts_rank tops out near 1 for any long judgment, so it could not tell these apart."""
-    phrases, words = query_terms(conn, q)
     params.update({f"phrase{i}": p for i, p in enumerate(phrases)})
     params.update({f"word{i}": w for i, w in enumerate(words)})
     order = []
