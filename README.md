@@ -225,7 +225,7 @@ The dataset is not refreshed daily. In 2026 its maintainers pushed Rajasthan upd
 
 | Endpoint | What it does |
 | --- | --- |
-| `GET /judgments` | Search and filter: `q` (full text), `judge` (matches the eCourts judges or the judges printed on the PDF), `act` and `section`, `case_type`, `bench`, `disposal`, `decided_from`, `decided_to`, `page`, `page_size`. A word search naming a kind of case (contempt, bail, habeas) lists only cases of that kind in which the other words appear as typed, e.g. `armed force tribunal contempt` gives contempt cases where the Armed Forces Tribunal features; `mentions=true` lists every match |
+| `GET /judgments` | Search and filter: `q` (full text), `judge` (matches the eCourts judges or the judges printed on the PDF), `act` and `section`, `case_type`, `bench`, `disposal`, `decided_from`, `decided_to`, `page`, `page_size`. A word search naming a kind of case (contempt, bail, habeas) lists cases of that kind first, then judgments discussing it, in both with the other words as typed, e.g. `armed force tribunal contempt` gives contempt cases where the Armed Forces Tribunal features, then judgments like Parashotam Dass on the Tribunal's contempt jurisdiction; `mentions=true` lists every match |
 | `GET /judgments/{id}` | One judgment with its description and extracted text, `cited_by`, `cites`, and `treated_by` (later judgments that set it aside, recalled or overruled it) |
 | `GET /stats` | Totals by bench, the top judges, acts, case types and outcomes |
 | `GET /api/acts` | The bare acts, with section counts and which code replaced which |

@@ -115,9 +115,9 @@ def test_every_searched_word_counts(client):
         conn.close()
 
 
-def test_search_naming_a_kind_of_case_lists_only_those_cases(client):
+def test_search_naming_a_kind_of_case_lists_those_cases_first(client):
     rows = [
-        # A pension case that mentions contempt and the Tribunal in passing.
+        # A pension case that discusses the Tribunal's contempt power in passing.
         dict(ROWS[1], cnr="RJHCPASSING", pdf_link="test/passing.pdf", decision_date="2025-01-01",
              text="The Armed Forces Tribunal granted gratuity. " * 5 + "Liberty to file a contempt petition."),
         # A contempt petition over a Tribunal order.
@@ -133,20 +133,19 @@ def test_search_naming_a_kind_of_case_lists_only_those_cases(client):
             cur.executemany(UPSERT_SQL, rows)
             cur.executemany("UPDATE judgments SET full_text = %(text)s WHERE cnr = %(cnr)s", rows)
         conn.commit()
+        # The contempt petition first, though older and with fewer mentions.
         body = client.get("/judgments", params={"q": "armed force tribunal contempt"}).json()
-        assert [r["cnr"] for r in body["results"]] == ["RJHCCCP"]
-        assert body["kinds"] == ["contempt"] and body["ranked"] == 1 and body["mentioning"] == 3
+        assert [r["cnr"] for r in body["results"]] == ["RJHCCCP", "RJHCPASSING"]
+        assert body["kinds"] == ["contempt"] and body["kind_cases"] == 1 and body["ranked"] == 2
+        assert body["mentioning"] == 3
 
         body = client.get("/judgments", params={"q": "armed force tribunal contempt", "mentions": True}).json()
         assert {r["cnr"] for r in body["results"]} == {"RJHCPASSING", "RJHCCCP", "RJHCOTHER"}
-        assert body["ranked"] == 3
+        assert body["ranked"] == 3 and body["kinds"] == []
 
-        # No contempt case is about gratuity: none is listed rather than the gratuity case.
-        body = client.get("/judgments", params={"q": "gratuity contempt"}).json()
-        assert body["results"] == [] and body["kinds"] == ["contempt"] and body["mentioning"] == 1
-
-        body = client.get("/judgments", params={"q": "gratuity"}).json()
-        assert body["kinds"] == [] and "RJHCPASSING" in [r["cnr"] for r in body["results"]]
+        # 'contempt' alone: the petitions, and no judgment that mentions contempt once.
+        body = client.get("/judgments", params={"q": "contempt"}).json()
+        assert {r["cnr"] for r in body["results"]} == {"RJHCCCP", "RJHCOTHER"}
     finally:
         conn.execute("DELETE FROM judgments WHERE cnr IN ('RJHCPASSING', 'RJHCCCP', 'RJHCOTHER')")
         conn.commit()

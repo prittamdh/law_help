@@ -106,7 +106,9 @@ async function run(state) {
   summary.textContent = !body.total ? ""
     : kinds && !shown ? `No ${kinds} cases match`
     : kinds
-      ? `${from.toLocaleString()}–${to.toLocaleString()} of ${shown.toLocaleString()} ${kinds} cases`
+      // cases of that kind come first, then judgments discussing it
+      ? `${from.toLocaleString()}–${to.toLocaleString()} of ${body.kind_cases.toLocaleString()} ${kinds} cases` +
+        (shown > body.kind_cases ? ` and ${(shown - body.kind_cases).toLocaleString()} judgments discussing ${kinds}` : "")
     : shown < body.total
       ? `${from.toLocaleString()}–${to.toLocaleString()} of the ${shown.toLocaleString()} most recent of ${total} judgments`
       : `${from.toLocaleString()}–${to.toLocaleString()} of ${total} judgments`;
@@ -120,7 +122,7 @@ async function run(state) {
   if (kinds && body.mentioning > shown) {
     summary.append(" · ", el("a", { href: withMentions(true) }, `Show all ${body.mentioning.toLocaleString()} judgments with these words`));
   } else if (state.mentions && state.q) {
-    summary.append(" · ", el("a", { href: withMentions(false) }, "Only cases of the kind searched for"));
+    summary.append(" · ", el("a", { href: withMentions(false) }, "Only those cases and judgments discussing them"));
   }
   // IPC 302 also found BNS 103: say so, since those results don't mention the section searched.
   const eqs = (body.equivalents || []).filter((e) => e.ref);
