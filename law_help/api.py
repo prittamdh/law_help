@@ -202,22 +202,28 @@ def search_judgments(
     else:
         total = conn.execute(f"SELECT count(*) AS n FROM judgments {where_sql}", params).fetchone()["n"]
 
-    # A word search naming a kind of case lists only cases of that kind, unless asked for every
-    # match. The count rides along with the page, so the pool is ranked once.
-    about, kinds = case_kind_sql(filters.q, params) if filters.q and not mentions else (None, [])
-    rows = None
-    if about:
-        about_where = f"{where_sql} AND {about}"
+    # A word search naming a kind of case lists the cases of that kind first, then the judgments
+    # discussing it, unless asked for every match. The counts ride along with the page, so the
+    # pool is ranked once.
+    listed, of_kind, kinds = case_kind_sql(filters.q, params) if filters.q and not mentions else (None, None, [])
+    rows, kind_cases = None, 0
+    if listed:
+        listed_where = f"{where_sql} AND {listed}"
         rows = conn.execute(
-            f"SELECT {LIST_COLUMNS}, count(*) OVER () AS about_n FROM judgments {about_where} {order_sql} "
+            f"SELECT {LIST_COLUMNS}, count(*) OVER () AS listed_n, "
+            f"count(*) FILTER (WHERE {of_kind}) OVER () AS kind_n FROM judgments {listed_where} "
+            f"{order_sql.replace('ORDER BY ', f'ORDER BY ({of_kind}) DESC, ', 1)} "
             "LIMIT %(limit)s OFFSET %(offset)s",
             params,
         ).fetchall()
-        n = rows[0]["about_n"] if rows else conn.execute(
-            f"SELECT count(*) AS n FROM judgments {about_where}", params).fetchone()["n"]
+        if rows:
+            ranked, kind_cases = rows[0]["listed_n"], rows[0]["kind_n"]
+        else:
+            counts = conn.execute(f"SELECT count(*) AS n, count(*) FILTER (WHERE {of_kind}) AS k "
+                                  f"FROM judgments {listed_where}", params).fetchone()
+            ranked, kind_cases = counts["n"], counts["k"]
         for r in rows:
-            del r["about_n"]
-        ranked = n
+            del r["listed_n"], r["kind_n"]
     if rows is None:
         rows = conn.execute(
             f"SELECT {LIST_COLUMNS} FROM judgments {where_sql} {order_sql} "
@@ -227,8 +233,9 @@ def search_judgments(
     capped = bool(filters.q) and total > SEARCH_COUNT_CAP
     return {"total": min(total, SEARCH_COUNT_CAP), "total_capped": capped,
             "ranked": ranked if filters.q else total,
-            # word search naming a kind of case: the kinds listed ([] when every match is), and how many match
-            "kinds": kinds,
+            # word search naming a kind of case: the kinds ([] when every match is listed), and how many
+            # of the listed judgments are cases of that kind (they come first)
+            "kinds": kinds, "kind_cases": kind_cases,
             "mentioning": mentioning if filters.q else total,
             "page": page, "page_size": page_size, "equivalents": added,
             "results": [_present(r) for r in rows]}
@@ -276,35 +283,44 @@ CASE_KIND_WORDS = {
 # A judgment of another case type is still of that kind when the word is in its title or
 # opening lines / headnote, or it uses the word about ten times (weight C, 0.2 each).
 KIND_MIN_RANK = 2.0
+# A judgment of another kind discusses it when it uses the word about three times.
+DISCUSSED_MIN_RANK = 0.6
 
 
-def case_kind_sql(q: str, params: dict) -> tuple[str | None, list[str]]:
-    """For a search naming a kind of case: a condition that the judgment is a case of that kind,
-    and that the rest of the search appears as typed ('armed force tribunal' side by side).
-    Returns (condition or None, the kind words)."""
+def case_kind_sql(q: str, params: dict) -> tuple[str | None, str | None, list[str]]:
+    """For a search naming a kind of case: which judgments to list, which of them are cases of
+    that kind (listed first), and the kind words. Listed are the cases of that kind, then the
+    judgments that discuss it (Parashotam Dass on the Tribunal's contempt jurisdiction), in both
+    with the rest of the search as typed ('armed force tribunal' side by side). With nothing but
+    the kind word ('contempt'), a judgment discusses it when it uses it about three times."""
     q = re.sub(r'-"[^"]*"|(?<!\w)-\S+', " ", q)
     if re.search(r"\bor\b", q, re.I):
-        return None, []
+        return None, None, []
     words = re.findall(r"[\w']+", q)
-    kinds = [w.lower() for w in words if w.lower() in CASE_KIND_WORDS]
+    kinds = list(dict.fromkeys(w.lower() for w in words if w.lower() in CASE_KIND_WORDS))
     if not kinds:
-        return None, []
-    conds = []
-    for i, kind in enumerate(dict.fromkeys(kinds)):
+        return None, None, []
+    of_kind, discussed = [], []
+    for i, kind in enumerate(kinds):
         params[f"kind{i}"], params[f"kind{i}_codes"] = kind, CASE_KIND_WORDS[kind]
-        conds.append(
+        of_kind.append(
             f"(case_type = ANY(%(kind{i}_codes)s)"
             # Supreme Court case types are spelt out: CONTEMPT PETITION (CIVIL)
             f" OR to_tsvector('english', coalesce(case_type, '')) @@ plainto_tsquery('english', %(kind{i})s)"
             f" OR search @@ (plainto_tsquery('english', %(kind{i})s)::text || ':AB')::tsquery"
             f" OR ts_rank_cd(search, plainto_tsquery('english', %(kind{i})s)) >= {KIND_MIN_RANK})")
+        discussed.append(f"ts_rank_cd(search, plainto_tsquery('english', %(kind{i})s)) >= {DISCUSSED_MIN_RANK}")
     # The words between the kind words, typed side by side, must appear side by side.
     runs = [r.split() for r in re.split(r"\b(?:%s)\b" % "|".join(CASE_KIND_WORDS), " ".join(words), flags=re.I)]
+    as_typed = []
     for i, run in enumerate(r for r in runs if len(r) > 1):
         params[f"run{i}"] = " ".join(run)
-        conds.append(f"(numnode(phraseto_tsquery('english', %(run{i})s)) < 2"
-                     f" OR search @@ phraseto_tsquery('english', %(run{i})s))")
-    return "(" + " AND ".join(conds) + ")", list(dict.fromkeys(kinds))
+        as_typed.append(f"(numnode(phraseto_tsquery('english', %(run{i})s)) < 2"
+                        f" OR search @@ phraseto_tsquery('english', %(run{i})s))")
+    kind_sql = "(" + " AND ".join(of_kind) + ")"
+    rest = [w for w in words if w.lower() not in CASE_KIND_WORDS]
+    listed = [f"({kind_sql} OR {' AND '.join(discussed)})"] if not rest else []
+    return "(" + " AND ".join(as_typed + listed or ["TRUE"]) + ")", kind_sql, kinds
 
 
 def rank_order_sql(phrases: list[str], words: list[str], params: dict) -> str:
