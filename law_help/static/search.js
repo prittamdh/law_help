@@ -102,23 +102,25 @@ async function run(state) {
   const from = shown ? (body.page - 1) * PAGE_SIZE + 1 : 0;
   const to = Math.min(shown, body.page * PAGE_SIZE);
   const total = `${body.total.toLocaleString()}${body.total_capped ? "+" : ""}`;
+  const kinds = (body.kinds || []).join(" and ");
   summary.textContent = !body.total ? ""
-    : body.about
-      ? `${from.toLocaleString()}–${to.toLocaleString()} of ${shown.toLocaleString()} judgments about these words`
+    : kinds && !shown ? `No ${kinds} cases match`
+    : kinds
+      ? `${from.toLocaleString()}–${to.toLocaleString()} of ${shown.toLocaleString()} ${kinds} cases`
     : shown < body.total
       ? `${from.toLocaleString()}–${to.toLocaleString()} of the ${shown.toLocaleString()} most recent of ${total} judgments`
       : `${from.toLocaleString()}–${to.toLocaleString()} of ${total} judgments`;
-  // Judgments that only mention the words in passing are left out; one click shows them too.
+  // A search naming a kind of case (contempt, bail) lists only those cases; one click shows every match.
   const withMentions = (on) => {
     const p = new URLSearchParams(location.search);
     p.delete("page");
     if (on) p.set("mentions", "1"); else p.delete("mentions");
     return `?${p}`;
   };
-  if (body.about && body.mentioning > shown) {
-    summary.append(" · ", el("a", { href: withMentions(true) }, `Show all ${body.mentioning.toLocaleString()} that mention them`));
+  if (kinds && body.mentioning > shown) {
+    summary.append(" · ", el("a", { href: withMentions(true) }, `Show all ${body.mentioning.toLocaleString()} judgments with these words`));
   } else if (state.mentions && state.q) {
-    summary.append(" · ", el("a", { href: withMentions(false) }, "Only those about these words"));
+    summary.append(" · ", el("a", { href: withMentions(false) }, "Only cases of the kind searched for"));
   }
   // IPC 302 also found BNS 103: say so, since those results don't mention the section searched.
   const eqs = (body.equivalents || []).filter((e) => e.ref);

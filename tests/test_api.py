@@ -109,24 +109,23 @@ def test_every_searched_word_counts(client):
         conn.commit()
         body = client.get("/judgments", params={"q": "armed force tribunal contempt", "mentions": True}).json()
         assert [r["cnr"] for r in body["results"]] == ["RJHCCONTEMPT", "RJHCTRIBUNAL"]
-        # By default the one that mentions contempt only in passing is left out.
-        body = client.get("/judgments", params={"q": "armed force tribunal contempt"}).json()
-        assert [r["cnr"] for r in body["results"]] == ["RJHCCONTEMPT"]
     finally:
         conn.execute("DELETE FROM judgments WHERE cnr IN ('RJHCTRIBUNAL', 'RJHCCONTEMPT')")
         conn.commit()
         conn.close()
 
 
-def test_word_search_lists_judgments_about_the_words(client):
+def test_search_naming_a_kind_of_case_lists_only_those_cases(client):
     rows = [
+        # A pension case that mentions contempt and the Tribunal in passing.
         dict(ROWS[1], cnr="RJHCPASSING", pdf_link="test/passing.pdf", decision_date="2025-01-01",
-             text="Pension arrears are due. Liberty to file a contempt petition if not paid."),
-        dict(ROWS[1], cnr="RJHCABOUT", pdf_link="test/about.pdf", decision_date="2020-01-01",
-             text="The respondents wilfully disobeyed the order. " + "Contempt is made out. " * 3),
-        # A contempt petition is about contempt however rarely the word appears.
+             text="The Armed Forces Tribunal granted gratuity. " * 5 + "Liberty to file a contempt petition."),
+        # A contempt petition over a Tribunal order.
         dict(ROWS[1], cnr="RJHCCCP", pdf_link="test/ccp.pdf", decision_date="2019-01-01", case_type="CCP",
-             text="Compliance has been made. The petition is closed. Contempt dropped."),
+             text="The order of the Armed Forces Tribunal has been complied with. Contempt dropped."),
+        # A contempt petition where the Tribunal does not feature ('armed', 'force', 'tribunal' apart).
+        dict(ROWS[1], cnr="RJHCOTHER", pdf_link="test/other.pdf", decision_date="2021-01-01", case_type="CCP",
+             text="Armed guards. Police force. The tribunal below. Contempt is made out."),
     ]
     conn = db.connect(TEST_URL)
     try:
@@ -134,19 +133,22 @@ def test_word_search_lists_judgments_about_the_words(client):
             cur.executemany(UPSERT_SQL, rows)
             cur.executemany("UPDATE judgments SET full_text = %(text)s WHERE cnr = %(cnr)s", rows)
         conn.commit()
-        body = client.get("/judgments", params={"q": "contempt"}).json()
-        assert [r["cnr"] for r in body["results"]] == ["RJHCABOUT", "RJHCCCP"]
-        assert body["about"] and body["ranked"] == 2 and body["mentioning"] == 3
+        body = client.get("/judgments", params={"q": "armed force tribunal contempt"}).json()
+        assert [r["cnr"] for r in body["results"]] == ["RJHCCCP"]
+        assert body["kinds"] == ["contempt"] and body["ranked"] == 1 and body["mentioning"] == 3
 
-        body = client.get("/judgments", params={"q": "contempt", "mentions": True}).json()
-        assert {r["cnr"] for r in body["results"]} == {"RJHCABOUT", "RJHCCCP", "RJHCPASSING"}
-        assert not body["about"] and body["ranked"] == 3
+        body = client.get("/judgments", params={"q": "armed force tribunal contempt", "mentions": True}).json()
+        assert {r["cnr"] for r in body["results"]} == {"RJHCPASSING", "RJHCCCP", "RJHCOTHER"}
+        assert body["ranked"] == 3
 
-        # Nothing is about 'liberty': every mention is listed rather than none.
-        body = client.get("/judgments", params={"q": "liberty"}).json()
-        assert [r["cnr"] for r in body["results"]] == ["RJHCPASSING"] and not body["about"]
+        # No contempt case is about gratuity: none is listed rather than the gratuity case.
+        body = client.get("/judgments", params={"q": "gratuity contempt"}).json()
+        assert body["results"] == [] and body["kinds"] == ["contempt"] and body["mentioning"] == 1
+
+        body = client.get("/judgments", params={"q": "gratuity"}).json()
+        assert body["kinds"] == [] and "RJHCPASSING" in [r["cnr"] for r in body["results"]]
     finally:
-        conn.execute("DELETE FROM judgments WHERE cnr IN ('RJHCPASSING', 'RJHCABOUT', 'RJHCCCP')")
+        conn.execute("DELETE FROM judgments WHERE cnr IN ('RJHCPASSING', 'RJHCCCP', 'RJHCOTHER')")
         conn.commit()
         conn.close()
 
