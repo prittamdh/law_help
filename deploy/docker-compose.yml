@@ -1,0 +1,35 @@
+# law_help on a server that already runs Caddy in another Docker project.
+# The app joins Caddy's network so Caddy can proxy law.<domain> to it.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: law
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: law_help
+    command: >
+      postgres -c shared_buffers=1GB -c effective_cache_size=4GB
+      -c work_mem=32MB -c maintenance_work_mem=512MB
+    volumes:
+      - ${PGDATA_DIR:-/data/law_help_pg}:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"  # local only, for loading a dump
+    restart: unless-stopped
+
+  app:
+    build: ..
+    environment:
+      DATABASE_URL: postgresql://law:${POSTGRES_PASSWORD}@db:5432/law_help
+    depends_on:
+      - db
+    networks:
+      default:
+      caddy:
+        aliases:
+          - law-help-app
+    restart: unless-stopped
+
+networks:
+  caddy:
+    external: true
+    name: ${CADDY_NETWORK}
