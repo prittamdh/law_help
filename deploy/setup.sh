@@ -39,6 +39,9 @@ if docker exec "$CADDY" caddy validate --config /etc/caddy/Caddyfile --adapter c
   # Caddy's admin API may be off ("admin off"), in which case only a restart applies the change.
   docker exec -w /etc/caddy "$CADDY" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>/dev/null \
     || docker restart "$CADDY" >/dev/null
+  # Put the block back by itself whenever a redeploy of Caddy's own project resets the Caddyfile.
+  printf '*/5 * * * * root %s %s %s >> /var/log/law_help_caddy.log 2>&1\n' \
+    "$DIR/deploy/keep_caddy.sh" "$DOMAIN" "$CADDY" > /etc/cron.d/law_help
   echo "Done: https://$DOMAIN"
 else
   [ -f "$SRC.bak-law_help" ] && cat "$SRC.bak-law_help" > "$SRC"
